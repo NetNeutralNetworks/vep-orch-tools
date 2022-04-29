@@ -1,0 +1,16 @@
+---
+- name: Update ncubed services
+  hosts: all
+  gather_facts: no
+
+  tasks:
+  - name: Scan and save all SSH host keys
+    delegate_to: localhost
+    become: yes
+    blockinfile:
+      path: /etc/ssh/ssh_known_hosts
+      marker: "# {mark} ANSIBLE MANAGED KEYS for {{ inventory_hostname }}"
+      create: yes
+      state: present
+      block: "{{ lookup('pipe', 'ssh-keyscan ' + inventory_hostname) }}"
+      mode: 0644
