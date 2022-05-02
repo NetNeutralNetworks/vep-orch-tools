@@ -1,5 +1,14 @@
 #!/bin/python3
-import requests, time, json, os, yaml
+import requests, time, json, os, yaml, subprocess
+import json, os.path
+from random import randint
+
+import logging
+from logging.handlers import RotatingFileHandler
+
+INVENTORY_FILE='/opt/ncubed/ansible/inventories/hosts.yaml'
+KNOWN_HOSTS_FILE='/etc/ssh/ssh_known_hosts'
+LOG_FILE='/var/log/ncubed.attestation_sync.log'
 
 DAS_SERVER = "https://ncubed-das.westeurope.cloudapp.azure.com"
 TOKEN = "Hd4Ir161R8HygS8WVXmh4Rvoll1NgduHweVXGQRQREU"
@@ -8,8 +17,15 @@ PUB_KEY = "odz9hZVQO2maqpaFIG33Tv5ihBAD+1/SxI8Ko2FSFzM="
 IPV4_PREFIX="100.71"
 IPV6_PREFIX="fd71"
 
-import json, os.path
-from random import randint
+logger = logging.getLogger("ncubed attestation sync daemon")
+logger.setLevel(level=logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s,Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(message)s', 
+                                datefmt="%m/%d/%Y %H:%M:%S %p")
+rothandler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=5)
+rothandler.setFormatter(formatter)
+logger.addHandler(rothandler)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
 def update_cockpit(host, action):
     dirname = '/etc/cockpit/machines.d/'
     filename = f'{dirname}00-autopop.json'
@@ -44,19 +60,19 @@ def update_cockpit(host, action):
 
 def update_ansible(HOST, ACTION):
     try:
-        INVENTORY_FILE='/opt/ncubed/ansible/inventories/hosts.yaml'
         with open(INVENTORY_FILE) as f:
             inventory = yaml.load(f, Loader=yaml.FullLoader)
         if ACTION=='add':
             inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
+            subprocess.call(f'ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}', shell=True)
         elif ACTION=='remove':
             inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
+            subprocess.call(f'ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}', shell=True)
         with open(INVENTORY_FILE, 'w') as outfile:
             yaml.dump(inventory, outfile, default_flow_style=False)
+        return 0
     except Exception as e:
         return e
-        
-
 
 def active_peers():
     return [k[4].split(',')[0].split('/')[0] for k in [j for j in [i.split('\t') for i in os.popen("wg show all dump").read().split('\n')] if len(j) == 9 and j[5].isdigit and int(j[5]) > time.time()-300 ]]
@@ -70,10 +86,7 @@ while True:
         '{}/api/v1/serverapi/getclients'.format(DAS_SERVER),
         json=data)
 
-    print(r)
     results = json.loads(r.text)
-
-    print(results)
 
     for result in results['results']:
         IPV6 = "{}::{}/128".format(IPV6_PREFIX, result['device_id'])
