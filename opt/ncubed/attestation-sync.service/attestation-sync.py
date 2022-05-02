@@ -66,10 +66,14 @@ def update_ansible(HOST, ACTION):
             subprocess.call(f'''
                             sleep 10
                             ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
+                            chmod 644 {KNOWN_HOSTS_FILE}
                             ''', stdout=subprocess.PIPE, shell=True)
         elif ACTION=='remove':
             inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
-            subprocess.call(f'ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}', stdout=subprocess.PIPE, shell=True)
+            subprocess.call(f'''
+                            ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}
+                            chmod 644 {KNOWN_HOSTS_FILE}
+                            ''', stdout=subprocess.PIPE, shell=True)
         with open(INVENTORY_FILE, 'w') as outfile:
             yaml.dump(inventory, outfile, default_flow_style=False)
         return 0
