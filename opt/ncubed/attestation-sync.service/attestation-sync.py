@@ -1,5 +1,5 @@
 #!/bin/python3
-import requests, time, json, os
+import requests, time, json, os, yaml
 
 DAS_SERVER = "https://ncubed-das.westeurope.cloudapp.azure.com"
 TOKEN = "Hd4Ir161R8HygS8WVXmh4Rvoll1NgduHweVXGQRQREU"
@@ -42,6 +42,21 @@ def update_cockpit(host, action):
         json.dump(data, file, indent=4, sort_keys=True)
     return True
 
+def update_ansible(HOST, ACTION):
+    try:
+        INVENTORY_FILE='/opt/ncubed/ansible/inventories/hosts.yaml'
+        with open(INVENTORY_FILE) as f:
+            inventory = yaml.load(f, Loader=yaml.FullLoader)
+        if ACTION=='add':
+            inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
+        elif ACTION=='remove':
+            inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
+        with open(INVENTORY_FILE, 'w') as outfile:
+            yaml.dump(inventory, outfile, default_flow_style=False)
+    except Exception as e:
+        return e
+        
+
 
 def active_peers():
     return [k[4].split(',')[0].split('/')[0] for k in [j for j in [i.split('\t') for i in os.popen("wg show all dump").read().split('\n')] if len(j) == 9 and j[5].isdigit and int(j[5]) > time.time()-300 ]]
@@ -61,17 +76,19 @@ while True:
     print(results)
 
     for result in results['results']:
-        ipv6 = "{}::{}/128".format(IPV6_PREFIX, result['device_id'])
-        ipv4 = "{}.{}.{}/32".format(IPV4_PREFIX, result['device_id'] >> 8 & 255, result['device_id'] & 255)
+        IPV6 = "{}::{}/128".format(IPV6_PREFIX, result['device_id'])
+        IPV4 = "{}.{}.{}/32".format(IPV4_PREFIX, result['device_id'] >> 8 & 255, result['device_id'] & 255)
         if not result['device_id']:
             continue
         if result['approved']:
-            os.system("wg set wg0 peer {} allowed-ips {},{}".format(result['client_pub_key'], ipv4, ipv6))
+            os.system("wg set wg0 peer {} allowed-ips {},{}".format(result['client_pub_key'], IPV4, IPV6))
             os.system("wg-quick save wg0")
-            update_cockpit(ipv4.split('/')[0],"add")
+            update_cockpit(IPV4.split('/')[0],"add")
+            update_ansible(IPV6.split('/')[0],"add")
         else:
             os.system("wg set wg0 peer {} remove".format(result['client_pub_key']))
             os.system("wg-quick save wg0")
-            update_cockpit(ipv4.split('/')[0],"remove")
+            update_cockpit(IPV4.split('/')[0],"remove")
+            update_ansible(IPV6.split('/')[0],"remove")
 
     time.sleep(10)
