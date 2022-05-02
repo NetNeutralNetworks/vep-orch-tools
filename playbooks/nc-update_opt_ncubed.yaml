@@ -8,7 +8,7 @@
   - set_fact:
       UPDATE: 20220419-1344
 
-  - name: copy ncubed upddate
+  - name: copy ncubed update
     copy:
       src: /opt/ncubed/updates/{{ UPDATE }}/
       dest: /tmp/ncubed_update

@@ -66,10 +66,10 @@ def update_ansible(HOST, ACTION):
             subprocess.call(f'''
                             sleep 10
                             ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
-                            ''', shell=True)
+                            ''', stdout=subprocess.PIPE, shell=True)
         elif ACTION=='remove':
             inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
-            subprocess.call(f'ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}', shell=True)
+            subprocess.call(f'ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}', stdout=subprocess.PIPE, shell=True)
         with open(INVENTORY_FILE, 'w') as outfile:
             yaml.dump(inventory, outfile, default_flow_style=False)
         return 0
@@ -100,10 +100,12 @@ while True:
             os.system("wg-quick save wg0")
             update_cockpit(IPV4.split('/')[0],"add")
             update_ansible(IPV6.split('/')[0],"add")
+            logger.info(f"Added {IPV6.split('/')[0]} to inventory")
         else:
             os.system("wg set wg0 peer {} remove".format(result['client_pub_key']))
             os.system("wg-quick save wg0")
             update_cockpit(IPV4.split('/')[0],"remove")
             update_ansible(IPV6.split('/')[0],"remove")
+            logger.info(f"Removed {IPV6.split('/')[0]} from inventory")
 
     time.sleep(10)
