@@ -14,7 +14,7 @@
       path: "{{ TMP_FOLDER }}"
       owner: "{{ ansible_user }}"
       group: "{{ ansible_user }}"
-      mode: '0644'
+      mode: '0755'
       recurse: yes
       state: directory
 
