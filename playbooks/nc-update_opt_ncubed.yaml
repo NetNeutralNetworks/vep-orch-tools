@@ -9,10 +9,7 @@
       UPDATE: 20220419-1344
 
   - name: copy ncubed update
-    copy:
-      src: /opt/ncubed/updates/{{ UPDATE }}/
-      dest: /tmp/ncubed_update
-      directory_mode:
+    local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh /opt/ncubed/updates/{{ UPDATE }} {{ ansible_user }}@[{{ inventory_hostname }}]:/tmp/ncubed_update
 
   - name: install update
-    ansible.builtin.command: /bin/bash /tmp/ncubed_update/install.sh
+    ansible.builtin.command: /bin/bash /tmp/ncubed_update/{{ UPDATE }}/install.sh

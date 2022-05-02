@@ -9,9 +9,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 rm -r /opt/ncubed/*.service
 cp -r $SCRIPT_DIR/ncubed/* /opt/ncubed
 systemctl daemon-reload
-systemctl enable ncubed-oneshot.service
-systemctl start ncubed-oneshot.service
+chmod +x /opt/ncubed/oneshot.service/install
+/opt/ncubed/oneshot.service/install
 
 cp -r /opt/ncubed/etc/* /etc/
-
-systemctl disable ncubed-oneshot.service

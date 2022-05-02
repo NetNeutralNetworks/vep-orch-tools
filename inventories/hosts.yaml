@@ -20,6 +20,8 @@ all:
           clusternode: 0
         'fd71::71':
           clusternode: 0
+        'fd71::66':
+          clusternode: 0
         'fd71::46':
           clusternode: 0
           location: nieuwegein
