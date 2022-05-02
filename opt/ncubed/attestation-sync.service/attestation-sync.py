@@ -63,7 +63,10 @@ def update_ansible(HOST, ACTION):
             inventory = yaml.load(f, Loader=yaml.FullLoader)
         if ACTION=='add':
             inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
-            subprocess.call(f'ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}', shell=True)
+            subprocess.call(f'''
+                            sleep 2
+                            ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
+                            ''', shell=True)
         elif ACTION=='remove':
             inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
             subprocess.call(f'ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}', shell=True)
