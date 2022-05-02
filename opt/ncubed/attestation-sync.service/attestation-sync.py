@@ -64,7 +64,7 @@ def update_ansible(HOST, ACTION):
         if ACTION=='add':
             inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
             subprocess.call(f'''
-                            sleep 2
+                            sleep 10
                             ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
                             ''', shell=True)
         elif ACTION=='remove':
