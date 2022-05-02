@@ -1,6 +1,5 @@
 #!/bin/python3
-import requests, time, json, os, yaml, subprocess
-import json, os.path
+import requests, time, json, os, sys, yaml, subprocess
 from random import randint
 
 import logging
