@@ -1,0 +1,14 @@
+[Unit]
+Description=[ NCUBED ] startup
+StartLimitInterval=200
+StartLimitBurst=5
+Wants=ncubed-network.service
+After=ncubed-network.service
+
+[Service]
+ExecStart=/bin/bash /opt/ncubed/startup.service/startup.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

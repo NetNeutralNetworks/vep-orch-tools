@@ -1,11 +1,15 @@
 #!/bin/bash
 export ANSIBLE_INVENTORY=/opt/ncubed/ansible/inventories
 
-[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session && exit;}
+[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session && exit; }
 
-printf "To show dynamic motd run: cat /var/run/motd.dynamic"
+printf "
+To show dynamic motd run: cat /var/run/motd.dynamic
 
-printf "\n"
+ansible inventory: /opt/ncubed/ansible/inventories
+the inventory and ssh known hosts are automaticly updated by the attestation sync service
+"
+
 
 state=$(systemctl is-active ncubed-attestation-sync)
 case $state in
@@ -23,6 +27,19 @@ ncubed-attestation-sync: $(systemctl is-active ncubed-attestation-sync)
 ;;
 esac
 #systemctl status ncubed-attestation-sync.service
+if [[ -z "${ANSIBLE_USER}" ]]; then
+  printf "\e[31m
+        ANSIBLE_USER not set
+        \e[0m"
+fi
+
+if [[ -z "${ANSIBLE_PASSWORD}" ]]; then
+  printf "\e[31m
+        ANSIBLE_PASSWORD not set
+        \e[0m"
+fi
+
+cd ~/vep-orch-tools
 
 printf "\e[1m
                    _               _
@@ -33,4 +50,3 @@ printf "\e[1m
 |_| |_|\____)____/|____/|_____)\____|
 \e[0m
 "
-

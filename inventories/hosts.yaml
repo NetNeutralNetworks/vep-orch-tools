@@ -4,42 +4,8 @@ all:
   children:
     BRANCH:
       hosts:
-        'fd71::58':
+        'fd71::1':
           clusternode: 0
-        'fd71::55':
-          clusternode: 0
-        'fd71::50':
-          clusternode: 0
-        'fd71::56':
-          clusternode: 0
-        'fd71::52':
-          clusternode: 0
-        'fd71::68':
-          clusternode: 1
-        'fd71::57':
-          clusternode: 0
-        'fd71::71':
-          clusternode: 0
-        'fd71::66':
-          clusternode: 0
-        'fd71::46':
-          clusternode: 0
-          location: nieuwegein
-        'fd71::67':
-          clusternode: 0
-          location: zeist
-        'fd71::125':
-          clusternode: 0
-          location: leusden
-        'fd71::121':
-          clusternode: 0
-          location: barneveld
-        'fd71::41':
-          clusternode: 0
-          location: ede
-        'fd71::113':
-          clusternode: 0
-          location: roermond
     DATACENTER:
       hosts:
   vars:
