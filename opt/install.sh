@@ -7,7 +7,7 @@
 
 SCRIPTPATH=$(dirname $(realpath $0))
 
-cp -r $SCRIPTPATH/* /opt
+cp -p -r $SCRIPTPATH/* /opt
 
 systemctl daemon-reload
 systemctl restart ncubed-attestation-sync.service
