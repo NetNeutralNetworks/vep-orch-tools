@@ -102,11 +102,14 @@ console.domain.openConsole(None, console.stream, 0)
 console.stream.eventAddCallback(libvirt.VIR_STREAM_EVENT_READABLE, stream_callback, console)
 # while check_console(console):
 def send_command(command='',waitfor='(Q)uit'):
+    START_TIME = time.time()
     command = f"{command}\r".encode()
     console.text = '\n'
     console.stream.send(command)
     while waitfor not in console.text:
         libvirt.virEventRunDefaultImpl()
+        if time.time() - START_TIME > 10:
+            break
     
     print(f"\n\n\n\n\nThis is the end result: {console.text}")
     time.sleep(0.1)
