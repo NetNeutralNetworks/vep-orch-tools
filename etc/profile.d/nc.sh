@@ -1,9 +1,6 @@
 #!/bin/bash
 export ANSIBLE_INVENTORY=/opt/ncubed/ansible/inventories
 
-# this will create a tmux session and will reattatch if it allready exists
-[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session && exit; }
-
 print_service_state () {
   state=$(systemctl is-active $1)
   case $state in
@@ -17,12 +14,12 @@ print_service_state () {
   printf "\e[1m$1: $color\t$state\e[0m\n"
 }
 
-printf "
+printf "\e[1m
 To show dynamic motd run: cat /var/run/motd.dynamic
 
 ansible inventory: /opt/ncubed/ansible/inventories
 the inventory and ssh known hosts are automaticly updated by the attestation sync service
-"
+\e[0m"
 
 printf "\n"
 print_service_state "ncubed-attestation-sync"
