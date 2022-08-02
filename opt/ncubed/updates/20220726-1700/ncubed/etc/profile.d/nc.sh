@@ -12,6 +12,23 @@ alias _vlan='bridge -color vlan'
 alias _fdb='bridge -color fdb'
 alias _dhcpleases='cat /var/lib/misc/dnsmasq.leases'
 
+print_service_state () {
+  state=$(systemctl is-active $1)
+  case $state in
+    active)
+      color="\e[32m"
+    ;;
+    *)
+      color="\e[31m"
+    ;;
+  esac
+  printf "\e[1m$1: $color\t$state\e[0m\n"
+}
+
+printf "\n"
+print_service_state "ncubed-callhome"
+print_service_state "ncubed-network"
+
 printf "\e[1m
                    _               _
                   | |             | |

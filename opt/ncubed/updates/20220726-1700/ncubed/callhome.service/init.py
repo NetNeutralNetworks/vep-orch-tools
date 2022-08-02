@@ -104,6 +104,7 @@ if __name__ == '__main__':
         subprocess.run(f"echo nameserver 1.1.1.1 > /etc/resolv.conf", shell=True)
 
         if not check_connection():
+            subprocess.run(f"/opt/ncubed/bin/led orange", shell=True)
             subprocess.run(f"wg-quick down wg0", shell=True)
             for interface in check_active_uplinks():
                 logger.debug(f'Trying to find config for {interface}')
@@ -169,6 +170,6 @@ if __name__ == '__main__':
                 logger.debug(f"No connection on WAN interfaces: Checking lagacy MGMT tunnel")
                 subprocess.run(f"wg-quick up wg0", shell=True)
         else:
-            time.sleep(180)
+            subprocess.run(f"/opt/ncubed/bin/led purple", shell=True)
     
         time.sleep(10)
