@@ -1,0 +1,28 @@
+- name: Update system
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Only run "update_cache=yes" if the last one is more than 3600 seconds ago
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install SNMP Packages
+      ansible.builtin.apt:
+          name: snmpd
+          state: present
+
+    # - name: Configure SNMP v2c Community
+    #   lineinfile:
+    #     path: /etc/snmp/snmpd.conf
+    #     regexp: 'com2sec notConfigUser  default       public'
+    #     line: 'com2sec notConfigUser  default       <COMMUNITY>'
+    #     backrefs: true
+
+    - name: Start SNMP Service
+      service:
+        name: snmpd
+        state: started
+        enabled: yes
