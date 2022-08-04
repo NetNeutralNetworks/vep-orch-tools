@@ -4,15 +4,11 @@
   gather_facts: no
 
   tasks:
-    - name: get active wan namespace
-      ansible.builtin.shell: 'ip -br addr | grep wg_ | grep -o "WAN[0-9]"'
-      register: interface
-
     - name: update apt
-      ansible.builtin.command: ip netns exec ns_{{interface.stdout}} apt update
+      ansible.builtin.command: apt update
 
     - name: install snmpd
-      ansible.builtin.command: ip netns exec ns_{{interface.stdout}} apt -y install snmpd
+      ansible.builtin.command: apt -y install snmpd
 
     - name: Copy using inline content
       ansible.builtin.copy:
