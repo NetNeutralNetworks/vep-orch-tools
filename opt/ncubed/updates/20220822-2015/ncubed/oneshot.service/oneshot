@@ -1,0 +1,57 @@
+#/bin/bash
+WORKINGDIR=$(dirname $(realpath $0))
+
+# flush network manager config
+for i in $(nmcli -t -f UUID con) 
+do 
+    nmcli con delete $i
+done
+
+###########################################################################################################
+# clean netplan
+###########################################################################################################
+rm /etc/netplan/*
+cp  $WORKINGDIR/network-config.yaml /etc/netplan/network-config.yaml
+netplan apply
+systemctl restart network-manager.service
+
+###########################################################################################################
+# setup firewall
+###########################################################################################################
+dpkg -s $1 &> /dev/null
+
+if [ $? -eq 0 ]; then
+    echo "Package $1 is installed!"
+else
+    echo "Package $1 is NOT installed!"
+    sleep 30
+    apt -y update
+    apt -y install firewalld
+fi
+
+# configure firewall
+firewall-cmd --new-zone=MGMT --permanent
+
+firewall-cmd --zone=MGMT --set-target=ACCEPT --permanent
+
+systemctl restart firewalld.service
+# need to retsart libvirtd because restart firewalld flushes iptables
+systemctl restart libvirtd.service
+
+firewall-cmd --zone=MGMT --add-service=ssh --add-service=cockpit
+firewall-cmd --zone=MGMT --change-interface=br-MGMT
+
+firewall-cmd --zone=public --remove-service=ssh --remove-service=dhcpv6-client
+
+firewall-cmd --runtime-to-permanent
+
+###########################################################################################################
+# setup services
+###########################################################################################################
+chmod +x /opt/ncubed/startup.service/install
+chmod +x /opt/ncubed/network.service/install
+/opt/ncubed/startup.service/install
+/opt/ncubed/network.service/install
+
+systemctl restart wg-quick@wg0.service
+firewall-cmd --zone=MGMT --change-interface=wg0
