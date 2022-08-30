@@ -1,0 +1,28 @@
+#/bin/bash
+WORKINGDIR=$(dirname $(realpath $0))
+
+# flush network manager config
+for i in $(nmcli -t -f UUID con) 
+do 
+    nmcli con delete $i
+done
+
+###########################################################################################################
+# clean netplan
+###########################################################################################################
+rm /etc/netplan/*
+cp  $WORKINGDIR/network-config.yaml /etc/netplan/network-config.yaml
+netplan apply
+systemctl restart network-manager.service
+
+
+###########################################################################################################
+# setup services
+###########################################################################################################
+chmod +x /opt/ncubed/startup.service/install
+chmod +x /opt/ncubed/network.service/install
+/opt/ncubed/startup.service/install
+/opt/ncubed/network.service/install
+
+systemctl restart wg-quick@wg0.service
+

@@ -1,0 +1,6 @@
+[Unit]
+Description=[ NCUBED ] oneshot scripts
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/ncubed/oneshot.service/oneshot
