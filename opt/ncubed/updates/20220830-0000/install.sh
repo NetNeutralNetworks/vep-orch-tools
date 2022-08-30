@@ -23,3 +23,6 @@ chmod +x $ROOTDIR/callhome.service/install
 $ROOTDIR/callhome.service/install
 
 cp -p -r $ROOTDIR/etc/* /etc/
+
+# add cli to globally available tools
+ln $ROOTDIR/bin/n3.py /usr/local/bin/n3
