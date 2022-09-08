@@ -73,22 +73,20 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     VETH_E_IP=f"{TRANSIT_PREFIX}.1/24"
     VETH_L2_I=f"veth_{DOMAIN}_l2_i"
     VETH_L2_E=f"veth_{DOMAIN}_l2_e"
+    
+    output = subprocess.run(f"ip -j netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
+    if output:
+        NETNAMESPACES=json.loads(output)
+        if NETNS in [n.get('name')for n in NETNAMESPACES]:
+            logger.info(f"Pre cleaning {NETNS}")
+            subprocess.call(f'''
+            kill $(ip netns pids {NETNS})
+            ip netns delete {NETNS}
+            ''', stdout=subprocess.PIPE, shell=True)
 
-    # ORIGINAL_BRIDGELINKS=[L for L in json.loads(subprocess.run(f"bridge -j link", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout) if L.get('master') in [BRIDGE_I, BRIDGE_L2_I]]
-    NETNAMESPACES=json.loads(subprocess.run(f"ip -j netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout)
-    if NETNS in [n.get('name')for n in NETNAMESPACES]:
-        logger.info(f"Pre cleaning {NETNS}")
-        subprocess.call(f'''
-        kill $(ip netns pids {NETNS})
-        ip netns delete {NETNS}
-        ''', stdout=subprocess.PIPE, shell=True)
-
-        # ip link del {BRIDGE_I}
-        # ip link del {BRIDGE_L2_I}
-        # Wait artificially to make sure everything is cleaned up before proceding
-        time.sleep(0.1)
-    else:
-        logger.info(f"{NETNS} does not exist yet")
+            time.sleep(0.1)
+        else:
+            logger.info(f"{NETNS} does not exist yet")
 
     logger.info(f"Creating {NETNS}")
     subprocess.call(f'''
