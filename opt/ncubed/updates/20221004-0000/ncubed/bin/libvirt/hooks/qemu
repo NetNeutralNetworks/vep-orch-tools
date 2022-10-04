@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+
+import sys
+import logging
+import xml.etree.ElementTree as ET
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger("ncubed libvirt")
+logger.setLevel(level=logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s,Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(message)s',
+                                datefmt="%m/%d/%Y %H:%M:%S %p")
+rothandler = RotatingFileHandler('/var/log/ncubed.libvirt.log', maxBytes=100000, backupCount=5)
+rothandler.setFormatter(formatter)
+logger.addHandler(rothandler)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
+logger.info(f"{sys.argv}")
+if sys.argv[2] == 'started':
+    # VM is done initialising and labeling
+    logger.info(f"Starting vm: {sys.argv[1]}")
+    
+    if sys.argv[1] == 'ION':
+        # VM is a SD-WAN ION device
+        vm_definition=sys.stdin.readlines()
+        root = ET.fromstring(data)
+        for interface in root.findall('interface'):
+            if_config = interface.find('target')
+            logger.info(f"{if_config.tag}: {if_config.attrib}")
