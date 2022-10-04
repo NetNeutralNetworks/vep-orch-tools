@@ -55,3 +55,12 @@ Purple color means the connection to the Orchestration service is set up and the
  This playbook is used to connect to devices and save the SSH fingerprint of the device.
  ## nc-update_opt_ncubed.yaml
  This playbook is used to update the VEP software on known devices. It copies the version specified in the playbook to the device and runes the <update>/install.sh script
+ 
+ # N3 shell
+ The n3 shell was created to ease management and to allow logic proccessing within a single command that can also be used programmaticly.
+ This progam is made globally available during the installation of an update and can be used interactivly using the `n3` command. Commands entered in the interactive mode have tab-completion
+ It can also be used a single line command (ex. n3 show version).
+ Planned functionality include: 
+ - troubleshooting commands
+ - Editing ip config
+ - VEP updating
