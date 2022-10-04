@@ -38,3 +38,7 @@ printf "\e[1m
 |_| |_|\____)____/|____/|_____)\____|
 \e[0m
 "
+
+printf "\e[1m"
+n3 show version
+printf "\e[0m\n"
