@@ -1,0 +1,73 @@
+#cloud-config
+# https://ubuntu.com/server/docs/install/autoinstall-reference
+autoinstall:
+  version: 1
+
+  reporting:
+    builtin:
+      type: print
+
+  apt:
+    preserve_sources_list: false
+    primary:
+        - arches: [i386, amd64]
+          uri: "http://archive.ubuntu.com/ubuntu"
+        - arches: [default]
+          uri: "http://ports.ubuntu.com/ubuntu-ports"
+    geoip: true
+
+  storage:
+    layout:
+      name: direct
+
+  ssh:
+    allow-pw: true
+    install-server: true
+
+  packages:
+    - wireguard
+    - git
+    - qemu-kvm
+    - libvirt-daemon
+    - libvirt-clients
+    - bridge-utils
+    - docker-compose
+    - cockpit
+    - cockpit-machines
+    - i2c-tools
+    - jq
+
+  early-commands:
+    - dpkg -i --force-all /cdrom/nocloud/deps/*.deb
+    - /cdrom/custom/opt/ncubed/bin/led blue
+
+  late-commands:
+    - /cdrom/custom/opt/ncubed/bin/led orange
+    - cp -r /cdrom/custom/* /target
+    - /cdrom/custom/opt/ncubed/bin/sync-images sdb2 /target/opt/ncubed
+    - efibootmgr -n 0000
+
+  error-commands:
+    - /cdrom/custom/opt/ncubed/bin/led red
+
+  # cloud-init
+  user-data:
+    timezone: Europe/Amsterdam
+    locale: en_US.UTF-8
+    keyboard:
+      layout: us
+    hostname: netcube01
+    package_update: false
+    package_upgrade: false
+    ssh_pwauth: True
+    users:
+      - name: nc-admin
+        shell: /bin/bash
+        sudo: ['ALL=(ALL) NOPASSWD:ALL']
+        passwd: $6$e8jD6FuUr$zvHJXNAsAJJKBOqnqrjQ/NnwrZRO28uV/DsEWZOckyFQc4sfb3WpPbEI4oCt9MPCC4Ge6aQ6yiv7/6kpNUb7o0
+        lock_passwd: false
+    bootcmd:
+      - efibootmgr -O
+    runcmd:
+      - /opt/ncubed/oneshot.service/install
+      - /opt/ncubed/startup.service/install
