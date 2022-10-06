@@ -1,9 +1,0 @@
-#!/bin/bash
-servicename=oneshot
-servicefile=/etc/systemd/system/ncubed-$servicename.service
-if [ -L $servicefile ]; then
-  rm $servicefile
-fi
-ln -s /opt/ncubed/$servicename.service/ncubed-$servicename.service $servicefile
-systemctl start ncubed-$servicename
-#systemctl enable ncubed-$servicename

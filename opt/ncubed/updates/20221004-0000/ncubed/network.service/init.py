@@ -212,6 +212,12 @@ server=9.9.9.9
     logger.info(100*'#')
 
 if __name__ == '__main__':
+    logger.info(f"Mounting default namespace as ROOT")
+    subprocess.run(f'''
+        touch /var/run/netns/ROOT
+        mount --bind /proc/1/ns/net /var/run/netns/ROOT
+    ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().lower()
+    
     with open('/opt/ncubed/config/network.yaml') as f:
         PORT_CONFIG = yaml.load(f, Loader=yaml.FullLoader)
 

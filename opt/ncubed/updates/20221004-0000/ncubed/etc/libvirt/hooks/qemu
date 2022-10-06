@@ -2,6 +2,7 @@
 
 import sys
 import logging
+import subprocess
 import xml.etree.ElementTree as ET
 from logging.handlers import RotatingFileHandler
 
@@ -18,11 +19,15 @@ logger.info(f"{sys.argv}")
 if sys.argv[2] == 'started':
     # VM is done initialising and labeling
     logger.info(f"Starting vm: {sys.argv[1]}")
-    
+
     if sys.argv[1] == 'ION':
         # VM is a SD-WAN ION device
-        vm_definition=sys.stdin.readlines()
-        root = ET.fromstring(data)
-        for interface in root.findall('interface'):
-            if_config = interface.find('target')
-            logger.info(f"{if_config.tag}: {if_config.attrib}")
+        vm_definition=' ' .join(sys.stdin.readlines())
+        root = ET.fromstring(vm_definition)
+        for item in root.findall('devices/interface/target'):
+            if item.tag == 'target':
+                logger.info(f"Found interface: {item.attrib['dev']}, adding untagged vlan 1 and tagged vlans 2-4094")
+                subprocess.run(f"""
+                               bridge vlan add dev {item.attrib['dev']} vid 1 pvid untagged
+                               bridge vlan add dev {item.attrib['dev']} vid 2-4094"""
+                               , shell=True)

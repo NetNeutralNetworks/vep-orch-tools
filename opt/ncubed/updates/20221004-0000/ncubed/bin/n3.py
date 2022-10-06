@@ -19,7 +19,7 @@ class show(cmd.Cmd):
         for NETNS in NETNAMESPACES:
             print(f"\n{50*'#'} {NETNS} {50*'#'}")
             subprocess.run(f'''
-                ip -n {NETNS} -br -c addr
+                sudo ip -n {NETNS} -br -c addr
                 ''', shell=True)
     
     def do_exit(self, args):

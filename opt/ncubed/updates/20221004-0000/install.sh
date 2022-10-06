@@ -7,17 +7,30 @@
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 ROOTDIR="/opt/ncubed"
 
+# cleanup original setup
 systemctl disable firewalld
 systemctl stop firewalld
 systemctl mask firewalld
+apt remove firewalld
 
 mkdir -p $ROOTDIR
 rm $ROOTDIR/*
 rm -r $ROOTDIR/*.service
+
+########################################################
+# install update
+########################################################
 cp -p -r $SCRIPT_DIR/ncubed/* $ROOTDIR
-systemctl daemon-reload
-chmod +x $ROOTDIR/oneshot.service/install
-$ROOTDIR/oneshot.service/install
+
+# clean netplan
+rm /etc/netplan/*
+cp  $ROOTDIR/config/netplan-config.yaml /etc/netplan/config.yaml
+netplan apply
+systemctl restart network-manager.service
+
+# install services
+chmod +x $ROOTDIR/network.service/install
+$ROOTDIR/network.service/install
 
 chmod +x $ROOTDIR/callhome.service/install
 $ROOTDIR/callhome.service/install
