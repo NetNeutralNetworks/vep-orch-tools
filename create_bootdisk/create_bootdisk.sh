@@ -35,9 +35,10 @@ fi
 
 # set vars
 file="netcube-autoinstall.$(date "+%Y.%m.%d-%H.%M.%S").img"
-mountfolder=`pwd`"/part01/"
 #isofile="ubuntu-20.04.4-live-server-amd64.iso"
 isofile="ubuntu-22.04.1-live-server-amd64.iso"
+mountfolder1=`pwd`"/part01/"
+mountfolder2=`pwd`"/part02/"
 
 #########################################
 # prep disk file
@@ -62,24 +63,22 @@ sgdisk -n 0:0:0 $device
 mkfs.ext4 $device"p2"
 
 # mount partitions
-mountfolder2=`pwd`"/part01/"
-mkdir $mountfolder
-mount $device"p1" $mountfolder
-mountfolder2=`pwd`"/part02/"
+mkdir $mountfolder1
+mount $device"p1" $mountfolder1
 mkdir $mountfolder2
 mount $device"p2" $mountfolder2
 
 #########################################
 # Write files to partitions
 #########################################
-if mountpoint -q $mountfolder; then
+if mountpoint -q $mountfolder1; then
 	# copy boot files
-	7z x $isofile -o$mountfolder
+	7z x $isofile -o$mountfolder1
 	#cp -r ./unattended_install/ubuntu\ 20.04/* $mountfolder
-	cp -r ./unattended_install/ubuntu\ 22.04/* $mountfolder
-	mkdir $mountfolder/ncubed
-	cp -r ../opt/ncubed/updates $mountfolder/ncubed
-	cp -r ./unattended_install/bin $mountfolder/ncubed
+	cp -r ./unattended_install/ubuntu\ 22.04/* $mountfolder1
+	mkdir $mountfolder1/ncubed
+	cp -r ../opt/ncubed/updates $mountfolder1/ncubed
+	cp -r ./unattended_install/bin $mountfolder1/ncubed
 else
 	printf "ERROR: disk not properly mounted"
 	exit 0
@@ -111,8 +110,8 @@ fi
 # cleanup
 #########################################
 read -rsp $"Press any key to cleanup and exit" -n1 key
-umount $mountfolder
-rm -r $mountfolder
+umount $mountfolder1
+rm -r $mountfolder1
 umount $mountfolder2
 rm -r $mountfolder2
 losetup -D
