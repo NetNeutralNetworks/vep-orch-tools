@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# block all iso and img
+*.iso
+*.img
+*.qcow2
+*.deb
