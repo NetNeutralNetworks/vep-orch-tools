@@ -1,7 +1,7 @@
 [Unit]
 Description=[ NCUBED ] network init
 StartLimitInterval=200
-StartLimitBurst=5
+StartLimitBurst=0
 Wants=network-online.target
 Wants=firewalld.service
 After=network-online.target
