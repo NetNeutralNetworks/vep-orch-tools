@@ -100,8 +100,6 @@ if __name__ == '__main__':
     while True:
         subprocess.run(f"echo nameserver 1.1.1.1 > /etc/resolv.conf", shell=True)
         try:
-            error = []
-            error.update()
             if not check_connection():
                 subprocess.run(f"/opt/ncubed/bin/led orange", shell=True)
                 subprocess.run(f"wg-quick down wg0", shell=True)
