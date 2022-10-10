@@ -1,7 +1,7 @@
 [Unit]
 Description=[ NCUBED ] Callhome to Orch-server
 StartLimitInterval=200
-StartLimitBurst=5
+StartLimitBurst=0
 Wants=ncubed-network.service
 After=ncubed-network.service
 
