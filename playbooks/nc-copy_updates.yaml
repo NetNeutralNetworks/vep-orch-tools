@@ -1,0 +1,21 @@
+---
+- name: Update ncubed services
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+  - set_fact:
+      UPDATES_FOLDER: /opt/ncubed/updates
+
+  - name: Change file ownership, group and permissions
+    ansible.builtin.file:
+      path: "{{ UPDATES_FOLDER }}"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: '0755'
+      recurse: yes
+      state: directory
+
+  - name: copy ncubed update
+    local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh /opt/ncubed/updates {{ ansible_user }}@[{{ inventory_hostname }}]:{{ UPDATES_FOLDER }}
