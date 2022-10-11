@@ -43,3 +43,6 @@ $ROOTDIR/network.service/install
 
 chmod +x $ROOTDIR/callhome.service/install
 $ROOTDIR/callhome.service/install
+
+# FIX: sudo unable to reolve hostname
+echo ::1 $(hostname) >> /etc/hosts
