@@ -6,7 +6,7 @@
 
   tasks:
   - set_fact:
-      UPDATE: 20220506-0000
+      UPDATE: 20221010-1200
       TMP_FOLDER: /tmp/ncubed_update
 
   - name: Change file ownership, group and permissions
