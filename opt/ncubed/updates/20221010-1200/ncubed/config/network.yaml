@@ -11,7 +11,7 @@
     BONDS:
       - name: bond34
         bridgename: br-trunk34
-        interfaces: ['ens5', 'ens6']
+        interfaces: []
       - name: bond56
         bridgename: br-trunk56
         interfaces: ['ens8', 'ens8']
@@ -31,7 +31,7 @@
     BONDS:
       - name: bond34
         bridgename: br-trunk34
-        interfaces: ['eno3', eno4]
+        interfaces: []
       - name: bond56
         bridgename: br-trunk56
         interfaces: ['eno5', eno6]
@@ -51,7 +51,7 @@
     BONDS:
       - name: bond34
         bridgename: br-trunk34
-        interfaces: ['enp2s0f0', enp2s0f1]
+        interfaces: []
       - name: bond56
         bridgename: br-trunk56
         interfaces: ['enp182s0f0']
