@@ -107,7 +107,7 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     
     logger.info(f"Creating l2 bridge {BRIDGE_L2_I}")
     subprocess.call(f'''
-    ip link add {BRIDGE_L2_I} type bridge vlan_filtering 1 stp_state 1 max_age 15 priority 65535 forward_delay 2
+    ip link add {BRIDGE_L2_I} type bridge vlan_filtering 1 stp_state 1 priority 65535 forward_delay 2
     bridge vlan del dev {BRIDGE_L2_I} vid 1 self
     ip link add {VETH_L2_I} type veth peer name {VETH_L2_E}
     ip link set {VETH_L2_I} master {BRIDGE_L2_I}
