@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+
+import sys
+import logging
+import subprocess
+import xml.etree.ElementTree as ET
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger("ncubed libvirt")
+logger.setLevel(level=logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s,Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(message)s',
+                                datefmt="%m/%d/%Y %H:%M:%S %p")
+rothandler = RotatingFileHandler('/var/log/ncubed.libvirt.log', maxBytes=100000, backupCount=5)
+rothandler.setFormatter(formatter)
+logger.addHandler(rothandler)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
+logger.info(f"{sys.argv}")
+if sys.argv[2] == 'started':
+    # VM is done initialising and labeling
+    logger.info(f"Starting vm: {sys.argv[1]}")
+
+    if sys.argv[1] == 'ION':
+        # VM is a SD-WAN ION device
+        vm_definition=' ' .join(sys.stdin.readlines())
+        root = ET.fromstring(vm_definition)
+        for item in root.findall('devices/interface/target'):
+            if item.tag == 'target':
+                logger.info(f"Found interface: {item.attrib['dev']}, adding untagged vlan 1 and tagged vlans 2-4094")
+                subprocess.run(f"""
+                               bridge vlan add dev {item.attrib['dev']} vid 1 pvid untagged
+                               bridge vlan add dev {item.attrib['dev']} vid 2-4094"""
+                               , shell=True)
