@@ -57,6 +57,18 @@ class cli(cmd.Cmd):
 
     def do_exit(self, args):
         return True
+    
+    def do_connect_USB0(self, args):
+        input("""
+                Connecting to /dev/ttyUSB0 with baud rate 115200
+                to exit screen use: CTRL-A k
+                Press any key to continue
+        """)
+        subprocess.run(f'''
+                       sudo python3 /opt/ncubed/bin/reset_usb.py CP210x
+                       sudo screen /dev/ttyUSB0 115200
+                       ''', shell=True)
+
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
