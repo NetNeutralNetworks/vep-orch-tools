@@ -46,3 +46,9 @@ $ROOTDIR/callhome.service/install
 
 # FIX: sudo unable to reolve hostname
 echo ::1 $(hostname) >> /etc/hosts
+
+# just a hack
+printf -- "---
+platform: $(sudo /usr/sbin/dmidecode -s system-family)
+serial: $(sudo /usr/sbin/dmidecode -s system-serial-number)
+" > /opt/ncubed/system.yaml
