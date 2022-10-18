@@ -22,5 +22,12 @@
     - name: Start SNMP Service
       service:
         name: snmpd
-        state: started
+        state: restarted
         enabled: yes
+
+    - name: populate system info
+      ansible.builtin.shell: |
+        printf -- "---
+        platform: $(sudo /usr/sbin/dmidecode -s system-family)
+        serial: $(sudo /usr/sbin/dmidecode -s system-serial-number)
+        " > /opt/ncubed/system.yaml
