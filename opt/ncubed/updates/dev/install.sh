@@ -44,6 +44,11 @@ $ROOTDIR/network.service/install
 chmod +x $ROOTDIR/callhome.service/install
 $ROOTDIR/callhome.service/install
 
+chmod +x /etc/libvirt/hooks/qemu
+systemctl restart libvirtd
+systemctl restart docker
+touch /var/log/ncubed.libvirt.log
+
 # FIX: sudo unable to reolve hostname
 echo ::1 $(hostname) >> /etc/hosts
 
