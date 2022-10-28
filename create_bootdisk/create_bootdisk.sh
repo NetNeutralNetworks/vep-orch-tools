@@ -87,6 +87,9 @@ fi
 if mountpoint -q $mountfolder2; then
 	if [ ${copyimages} ]; then
 		cp -r ./unattended_install/images $mountfolder2/
+	else
+		mkdir $mountfolder2/images
+		touch $mountfolder2/images/put_qcow2_images_here
 	fi
 else
 	printf "ERROR: disk not properly mounted"

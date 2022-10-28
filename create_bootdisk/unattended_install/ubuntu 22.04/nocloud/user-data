@@ -31,7 +31,6 @@ autoinstall:
     - libvirt-daemon
     - libvirt-clients
     - bridge-utils
-    - docker-compose
     - cockpit
     - cockpit-machines
     - i2c-tools
