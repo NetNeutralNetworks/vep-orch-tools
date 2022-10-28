@@ -1,0 +1,61 @@
+---
+- family: Not Specified
+  description: this template is used with a standard ubuntu cloud vm
+  portconfig:
+    MGMT:
+      0: 'ens3'
+    WAN:
+      0: 'ens4'
+      1: 'ens9'
+      2: 'ens10'
+    BONDS:
+      - name: bond34
+        bridgename: br-trunk34
+        interfaces: []
+      - name: bond56
+        bridgename: br-trunk56
+        interfaces: ['ens8', 'ens8']
+    INT:
+      0: br-trunk34
+    LAN:
+      0: br-trunk56
+
+- family: VEP1400-X
+  portconfig:
+    MGMT: 
+      0: 'eno1'
+    WAN:
+      0: 'eno2'
+      1: 'eno7'
+      2: 'eno8'
+    BONDS:
+      - name: bond34
+        bridgename: br-trunk34
+        interfaces: ['ens3','ens4']
+      - name: bond56
+        bridgename: br-trunk56
+        interfaces: ['eno5', eno6]
+    INT:
+      0: br-trunk34
+    LAN:
+      0: br-trunk56
+
+- family: VEP-4600
+  portconfig:
+    MGMT: 
+      0: 'enp5s0'
+    WAN:
+      0: 'enp2s0f2'
+      1: 'enp2s0f3'
+      2: 'enp182s0f1'
+    BONDS:
+      - name: bond34
+        bridgename: br-trunk34
+        interfaces: []
+      - name: bond56
+        bridgename: br-trunk56
+        interfaces: ['enp182s0f0']
+    INT:
+      0: br-trunk34
+    LAN:
+      0: br-trunk56
