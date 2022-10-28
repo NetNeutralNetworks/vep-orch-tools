@@ -3,6 +3,11 @@
   hosts: all
   become: yes
   gather_facts: no
+  serial:
+    - 1
+    - 5
+    - 30
+  order: sorted
 
   tasks:
     - name: Only run "update_cache=yes" if the last one is more than 3600 seconds ago
