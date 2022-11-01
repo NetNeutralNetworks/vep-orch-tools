@@ -3,7 +3,8 @@ import concurrent.futures
 from functools import partial
 import ipaddress
 import yaml
-
+import json
+from time import sleep
 import sys
 import logging
 from logging.handlers import RotatingFileHandler
@@ -79,8 +80,17 @@ def test_subnet(WANINTF,reference_ip):
                 return {'ip':last_ip,'gateway':gateway}
     return {}
 
+def flip_nics(WANINTF):
+    interface_list = subprocess.run(f'''ip netns exec ns_{WANINTF} ip -j link''', shell=True, stdout=subprocess.PIPE).stdout.decode()
+    interfaces = [i.get('ifname') for i in json.loads(interface_list) if i.get('master') == 'br-WAN0_e' and 'veth' not in i.get('ifname')]
+    for interface in interfaces:
+        subprocess.run(f'''ip netns exec ns_{WANINTF} ip link set dev {interface} down''', shell=True)
+        sleep(.2)
+        subprocess.run(f'''ip netns exec ns_{WANINTF} ip link set dev {interface} up''', shell=True)
+
 def capture_reference_ip(WANINTF):
     # using Popen to be able to continuously monitor tcpdump output
+    flip_nics(WANINTF)
     with subprocess.Popen(f"ip netns exec ns_{WANINTF} tcpdump -i br-{WANINTF}_e -U -l", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
         for line in p.stdout:
             #print(line, end='')
@@ -94,14 +104,13 @@ def capture_reference_ip(WANINTF):
 def save_config(WANINTF,settings):
     FILENAME = f'/opt/ncubed/config/{WANINTF}.yaml'
 
-
     with open(FILENAME,'w+') as wfile:
         with open(FILENAME,'r') as file:
             data = yaml.load(file, Loader=yaml.FullLoader)
             if not data:
                 data = {}
             data.update({'settings':settings})
-        yaml.dump(data, wfile, sort_keys=True)
+        yaml.dump(data, wfile, sort_keys=True)  
 
 def configure_wan_interface(WANINTF):
     reference_ip = capture_reference_ip(WANINTF)

@@ -166,17 +166,19 @@ if __name__ == '__main__':
                         ''', shell=True)
                         # if connection has been made, no need to try other namespaces
                         if check_connection():
+                            subprocess.run(f"/opt/ncubed/bin/led purple", shell=True)
                             logger.debug(f"Connection succesfull!")
                             break
                     else:
                         # No right DAS response
                         logger.debug(f"No right response from DAS")
-                        subprocess.run(f"/opt/ncubed/bin/led blink orange", shell=True)
+                        subprocess.run(f"/opt/ncubed/bin/led orange", shell=True)
                 if not check_connection():
                     logger.debug(f"No connection on WAN interfaces: Checking lagacy MGMT tunnel")
                     subprocess.run(f"wg-quick up wg0", shell=True)
             else:
                 subprocess.run(f"/opt/ncubed/bin/led purple", shell=True)
         except Exception as e:
+            subprocess.run(f"/opt/ncubed/bin/led red", shell=True)
             logger.error(f"Fatal error occured during callhome: {traceback.format_exc()}")
         time.sleep(10)

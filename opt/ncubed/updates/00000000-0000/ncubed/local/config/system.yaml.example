@@ -1,0 +1,13 @@
+---
+system:
+  name: MDM0165
+  
+# if cluster file does not exist or config is empty
+cluster:
+  name: cluster1
+  # members range from 1 to x, and should be connected in a leaf spine fasion
+  member: 1
+  # size defines the total member count
+  size: 2
+  # this scope will be used on the transit links
+  transit_scope: 169.254.0.0/16

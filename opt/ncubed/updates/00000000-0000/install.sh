@@ -8,13 +8,36 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 ROOTDIR="/opt/ncubed"
 
 # cleanup original setup
-systemctl disable firewalld
-systemctl stop firewalld
-systemctl mask firewalld
-apt remove firewalld
+for pkg in firewalld docker.io docker-compose
+do
+	if [ $(dpkg-query -W -f='${Status}' $pkg 2>/dev/null | grep -c "ok installed") -eq 1 ];
+    then echo remove; 
+		echo Removing: $pkg
+        systemctl disable $pkg
+        systemctl stop $pkg
+        systemctl mask $pkg
+        apt -y remove $pkg
+	else
+		echo not installed: $pkg 
+    fi
+done
+
+apt -y autoremove
+
+for svc in ncubed-oneshot ncubed-startup
+do
+	if $(systemctl status ncubed-* | grep -q ncubed-oneshot)
+	then
+		echo Removing: $svc
+		systemctl stop $svc
+		systemctl disable $svc
+	else
+		echo not installed: $svc 
+	fi
+done
 
 mkdir -p $ROOTDIR
-rm $ROOTDIR/*
+find $ROOTDIR -maxdepth 1 -type f -delete \( ! -iname "meta.yaml" ! -iname "system.yaml" \)
 rm -r $ROOTDIR/*.service
 
 ########################################################
@@ -46,7 +69,6 @@ $ROOTDIR/callhome.service/install
 
 chmod +x /etc/libvirt/hooks/qemu
 systemctl restart libvirtd
-systemctl restart docker
 touch /var/log/ncubed.libvirt.log
 
 # FIX: sudo unable to reolve hostname
