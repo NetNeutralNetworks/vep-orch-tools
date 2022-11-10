@@ -8,11 +8,19 @@ chmod a+x .
 chmod a+r BIN DLMC2
 chmod a+x BIN DLMC2
 
-CURRENT_FIRMWARE=$(hdparm -I /dev/sda | grep -i firmware)
-printf "\n$CURRENT_FIRMWARE\n\n"
-if $(echo $CURRENT_FIRMWARE | grep -q SFDN004E)
+CURRENT_FIRMWARE=$(hdparm -I /dev/sda)
+printf "
+$(printf "$CURRENT_FIRMWARE"| grep Firmware)
+$(printf "$CURRENT_FIRMWARE"| grep Model)
+\n"
+if $(printf "$CURRENT_FIRMWARE" | grep -q -i "256GB SATA Flash Drive")
 then
-echo "Firmware allready installed, exiting..."
+    if $(printf "$CURRENT_FIRMWARE" | grep -q -i "SFDN004E")
+    then
+        echo "Firmware allready installed, exiting..."
+    else
+        printf "/dev/sda\n" | ./DLMC2
+    fi
 else
-printf "/dev/sda\n" | ./DLMC2
+    echo "This is not the model you're looking for"
 fi
