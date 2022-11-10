@@ -23,4 +23,4 @@
       state: directory
 
   - name: copy ncubed update
-    local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh /opt/ncubed/updates {{ ansible_user }}@[{{ inventory_hostname }}]:{{ NCUBED_FOLDER }}
+    local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh ../opt/ncubed/updates {{ ansible_user }}@[{{ inventory_hostname }}]:{{ NCUBED_FOLDER }}
