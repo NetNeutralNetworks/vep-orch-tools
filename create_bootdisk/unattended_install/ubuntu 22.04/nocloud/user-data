@@ -10,7 +10,7 @@ autoinstall:
   apt:
     preserve_sources_list: false
     primary:
-        - arches: [./]
+        - arches: [default]
           uri: "file:///cdrom/local_repo/archives"
 
   storage:

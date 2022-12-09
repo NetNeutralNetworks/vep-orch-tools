@@ -35,9 +35,10 @@ do
     apt -y install -d -o=dir::cache=./ -o=dir::etc::sourcelist=../sources.list $package
 done
 # create Package file
-(cd $destination_folder/archives/; dpkg-scanpackages . > Packages)
+cd archives
+dpkg-scanpackages . > Packages
 # create Release file
-(cd $destination_folder/archives/; apt-ftparchive release . > Release)
+apt-ftparchive release . > Release
 # Release file should be signed to able to validate files packages
 #gpg -a --yes --clearsign --output InRelease --local-user $(id -un) --detach-sign /local_repo/debs/archives/Release
 
