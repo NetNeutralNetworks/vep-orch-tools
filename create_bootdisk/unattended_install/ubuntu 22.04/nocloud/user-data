@@ -10,11 +10,8 @@ autoinstall:
   apt:
     preserve_sources_list: false
     primary:
-        - arches: [i386, amd64]
-          uri: "http://archive.ubuntu.com/ubuntu"
-        - arches: [default]
-          uri: "http://ports.ubuntu.com/ubuntu-ports"
-    geoip: true
+        - arches: [./]
+          uri: "file:///cdrom/local_repo/archives"
 
   storage:
     layout:
@@ -36,7 +33,8 @@ autoinstall:
     - i2c-tools
 
   early-commands:
-    - dpkg -i --force-all /cdrom/nocloud/deps/*.deb
+    - apt update
+    - apt -y install i2c-tools
     - /cdrom/ncubed/bin/led blue
 
   late-commands:

@@ -141,7 +141,6 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     ip netns exec {NETNS} ip link set dev {BRIDGE_L2_E} up
     ''', shell=True)
 
-
     # get ip on outside nic
     logger.info("Setting ip's")
 
@@ -207,10 +206,6 @@ server=9.9.9.9
     ''', shell=True)
     logger.info(f"Finished adding {NETNS}")
     logger.info(100*'#')
-
-from copy import deepcopy
-
-
 
 def create_vlan_bridges():
     CONFIG_FOLDER = f'/opt/ncubed/config'

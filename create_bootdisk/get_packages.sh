@@ -22,10 +22,12 @@ packages=(
 "cockpit"
 "cockpit-machines"
 "i2c-tools"
+"snmpd"
+"debsums"
 )
 
 
-apt -o=dir::etc::sourcelist=./sources.list update
+apt -o=dir::etc::sourcelist=../sources.list update
 # download files
 for package in ${packages[*]}
 do

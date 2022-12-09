@@ -134,3 +134,6 @@ dmypy.json
 *.img
 *.qcow2
 *.deb
+
+# block local repo's
+local_repo/
