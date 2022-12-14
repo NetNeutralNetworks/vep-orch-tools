@@ -2,7 +2,7 @@
 
 # This script requires apt-dev to be installed
 
-[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
+#[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
 destination_folder=$1
 
 mkdir -p "$destination_folder"
@@ -12,10 +12,10 @@ printf "
 $(pwd)
 "
 
-packages=(
+PACKAGES=(
 "wireguard"
 "git"
-"qemu-kvm"
+"qemu-system-x86"
 "libvirt-daemon"
 "libvirt-clients"
 "bridge-utils"
@@ -24,19 +24,32 @@ packages=(
 "i2c-tools"
 "snmpd"
 "debsums"
+"efibootmgr"
 )
-
-
-apt -o=dir::etc::sourcelist=../sources.list update
+options="-o=dir::cache=./ -o=dir::etc::sourcelist=../sources.list"
+sudo apt update $options
+#packages=$(apt-cache depends $options --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends ${PACKAGES[*]} | grep "^\w")
 # download files
-for package in ${packages[*]}
+#apt install -y -d --reinstall $options ${packages[*]}
+# do;
+for package in ${PACKAGES[*]}
 do
-    echo $package
-    apt -y install -d -o=dir::cache=./ -o=dir::etc::sourcelist=../sources.list $package
+    printf "
+    #####################################
+    $package
+    #####################################
+    "
+    # get all dependencies for this package
+    # for p in $(apt-cache depends $options --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends $package | grep "^\w" | sort -u);
+    # do
+    #     apt-get download $options $p:amd64
+    apt-get download $options $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances $options $package | grep "^\w" | sort -u)
+    #done
 done
+
 # create Package file
-cd archives
-dpkg-scanpackages . > Packages
+#cd archives
+dpkg-scanpackages -a amd64 . > Packages
 # create Release file
 apt-ftparchive release . > Release
 # Release file should be signed to able to validate files packages

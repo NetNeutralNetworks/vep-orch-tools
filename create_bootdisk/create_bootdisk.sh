@@ -47,8 +47,8 @@ if [ ${copyimages} ]; then
 	# create 8Gb empty file
 	dd if=/dev/zero of=$file bs=8G seek=1 count=0
 else
-	# create 2Gb empty file
-	dd if=/dev/zero of=$file bs=2G seek=1 count=0
+	# create 4Gb empty file
+	dd if=/dev/zero of=$file bs=4G seek=1 count=0
 fi
 
 # mount file to loop device
@@ -57,7 +57,7 @@ losetup -P $device $file
 
 # partition and format disk
 sgdisk -og $device
-sgdisk -n 0:0:+1800MiB -t 0:ef00 $device
+sgdisk -n 0:0:+3500MiB -t 0:ef00 $device
 mkfs.vfat -F32 $device"p1"
 sgdisk -n 0:0:0 $device
 mkfs.ext4 $device"p2"
@@ -78,6 +78,7 @@ if mountpoint -q $mountfolder1; then
 	cp -r ./unattended_install/ubuntu\ 22.04/* $mountfolder1
 	mkdir $mountfolder1/ncubed
 	cp -r ../opt/ncubed/updates $mountfolder1/ncubed
+	cp -r ../opt/ncubed/FIRMWARE $mountfolder1/ncubed
 	cp -r ./unattended_install/bin $mountfolder1/ncubed
 else
 	printf "ERROR: disk not properly mounted"

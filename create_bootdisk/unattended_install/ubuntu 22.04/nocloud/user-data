@@ -3,46 +3,56 @@
 autoinstall:
   version: 1
 
+  network:
+    version: 2
+
   reporting:
     builtin:
       type: print
 
   apt:
     preserve_sources_list: false
-    primary:
-        - arches: [default]
-          uri: "file:///cdrom/local_repo/archives"
 
   storage:
     layout:
-      name: direct
+      name: lvm
 
   ssh:
     allow-pw: true
     install-server: true
 
-  packages:
-    - wireguard
-    - git
-    - qemu-kvm
-    - libvirt-daemon
-    - libvirt-clients
-    - bridge-utils
-    - cockpit
-    - cockpit-machines
-    - i2c-tools
-
   early-commands:
+    - echo 'deb [ trusted=yes ] file:///cdrom/local_repo ./' > /etc/apt/sources.list
     - apt update
     - apt -y install i2c-tools
+    - /cdrom/ncubed/bin/led cyan
+    - /bin/bash -c /cdrom/ncubed/FIRMWARE/Linux_DLMC2b_SFDN004E_20220315/install.sh
     - /cdrom/ncubed/bin/led blue
 
   late-commands:
     - /cdrom/ncubed/bin/led orange
+    - cp -r /cdrom/local_repo/ /target
+    - echo 'deb [ trusted=yes ] file:///local_repo ./' > /target/etc/apt/sources.list
+    - /cdrom/ncubed/bin/led cyan
+    - curtin --showtrace -vvv system-install -t /target -- wireguard
+    - curtin --showtrace -vvv system-install -t /target -- git
+    - curtin --showtrace -vvv system-install -t /target -- qemu-system-x86
+    - curtin --showtrace -vvv system-install -t /target -- libvirt-daemon
+    - curtin --showtrace -vvv system-install -t /target -- libvirt-clients
+    - curtin --showtrace -vvv system-install -t /target -- bridge-utils
+    - curtin --showtrace -vvv system-install -t /target -- cockpit
+    - curtin --showtrace -vvv system-install -t /target -- cockpit-machines
+    - curtin --showtrace -vvv system-install -t /target -- i2c-tools
+    - curtin --showtrace -vvv system-install -t /target -- snmpd
+    - curtin --showtrace -vvv system-install -t /target -- debsums
+    - /cdrom/ncubed/bin/led blue
     - mkdir /target/opt/ncubed
     - cp -r /cdrom/ncubed /target/opt
+    - /cdrom/ncubed/bin/led green
     - /cdrom/ncubed/bin/sync-images sdb2 /target/opt/ncubed
+    - apt -y install efibootmgr
     - efibootmgr -n 0000
+    - cp /target/etc/apt/sources.list.curtin.old /target/etc/apt/sources.list
 
   error-commands:
     - /cdrom/ncubed/bin/led red
