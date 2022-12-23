@@ -1,0 +1,19 @@
+[Unit]
+Description=[ NCUBED ] network init
+StartLimitInterval=200
+StartLimitBurst=5
+Wants=network-online.target
+Wants=firewalld.service
+After=network-online.target
+After=firewalld.service
+Before=containerd.service
+Before=libvirt-guests.service
+
+[Service]
+ExecStart=/bin/python3 /opt/ncubed/network.service/init.py
+ExecStartPost=/bin/sleep 10
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -45,6 +45,8 @@ autoinstall:
     - curtin --showtrace -vvv system-install -t /target -- i2c-tools
     - curtin --showtrace -vvv system-install -t /target -- snmpd
     - curtin --showtrace -vvv system-install -t /target -- debsums
+    - curtin --showtrace -vvv system-install -t /target -- python3-libvirt
+    - curtin --showtrace -vvv system-install -t /target -- dnsmasq-base
     - /cdrom/ncubed/bin/led blue
     - mkdir /target/opt/ncubed
     - cp -r /cdrom/ncubed /target/opt

@@ -25,6 +25,8 @@ PACKAGES=(
 "snmpd"
 "debsums"
 "efibootmgr"
+"python3-libvirt"
+"dnsmasq-base"
 )
 options="-o=dir::cache=./ -o=dir::etc::sourcelist=../sources.list"
 sudo apt update $options
