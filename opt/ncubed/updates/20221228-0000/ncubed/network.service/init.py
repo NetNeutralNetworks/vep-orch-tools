@@ -5,26 +5,30 @@ import os, sys
 import subprocess
 import netifaces
 import logging
-from threading import Thread
+import multiprocessing
 from logging.handlers import RotatingFileHandler
 # custom libs
 import detect_subnet
 
 logger = logging.getLogger("ncubed network daemon")
 logger.setLevel(level=logging.DEBUG)
-formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s,Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(message)s',
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s, Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(process)s: %(message)s',
                                 datefmt="%m/%d/%Y %H:%M:%S %p")
 rothandler = RotatingFileHandler('/var/log/ncubed.networkd.log', maxBytes=100000, backupCount=5)
 rothandler.setFormatter(formatter)
 logger.addHandler(rothandler)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
-LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
-GLOBAL_CONFIG_FOLDER = "/opt/ncubed/config/global"
+ROOT_FOLDER = "/opt/ncubed"
+LOCAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/local"
+GLOBAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/global"
+LOCAL_SYSTEM_CONFIG_FILE = f'{LOCAL_CONFIG_FOLDER}/system.yaml'
+CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
+
 
 def check_ip_configured(WANINTF):
-    ip_configured = subprocess.run(f'''ip -4 -n ns_{WANINTF} -br addr show dev br-{WANINTF}_e''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
-    return ip_configured
+    ips_configured = subprocess.run(f'''ip -4 -n ns_{WANINTF} -br addr show dev br-{WANINTF}_e''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()[2:]
+    return ips_configured
 
 def create_interface(NETNS, INTF, TYPE):
     interface_list = subprocess.run(f'''ip netns exec {NETNS} ip -j -br link''',stdout=subprocess.PIPE, shell=True).stdout.decode()
@@ -77,26 +81,30 @@ def create_trunkports(BONDNAME, INTERFACES, BRIDGENAME):
         ip link set dev {INTF} up
         ''', shell=True)
 
-def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
+def get_local_system_config():
+    # load local list
+    if os.path.exists(LOCAL_SYSTEM_CONFIG_FILE):
+        with open(LOCAL_SYSTEM_CONFIG_FILE) as f:
+            logger.info(f"Found config for adding globaly defined vlan bridges")
+            return yaml.load(f, Loader=yaml.FullLoader)
+    else:
+        return {}
+
+def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     # set vars
     DOMAIN=f"WAN{ID}"
     if not TRANSIT_PREFIX:
         TRANSIT_PREFIX=f"192.168.{ID}"
     EXTERNAL_NIC=INTF
     NETNS=f"ns_{DOMAIN}"
-    BRIDGE_L2_E=f"br-{DOMAIN}_e"
+    BRIDGE_E=f"br-{DOMAIN}_e"
     BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
     BRIDGE_L2_I=f"br-{DOMAIN}_l2_i"
     VETH_NAT=f"veth_{DOMAIN}_nat"
     VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
     VETH_L2=f"veth_{DOMAIN}_l2"
 
-    SYSTEM_LOCAL_FILE = f'{LOCAL_CONFIG_FOLDER}/system.yaml'
-    # load local list
-    if os.path.exists(SYSTEM_LOCAL_FILE):
-        with open(SYSTEM_LOCAL_FILE) as f:
-            logger.info(f"Found config for adding globaly defined vlan bridges")
-            local_system_config = yaml.load(f, Loader=yaml.FullLoader)
+    LOCAL_SYSTEM_CONFIG = get_local_system_config()
 
     existing_netnamespaces_json = subprocess.run(f"ip -j netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
     if existing_netnamespaces_json:
@@ -115,7 +123,7 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
                  {'netns':'ROOT','name':BRIDGE_L2_I,'type':'bridge'},
                  {'netns':'ROOT','name':VETH_NAT,'type':'veth'},
                  {'netns':'ROOT','name':VETH_L2,'type':'veth'},
-                 {'netns':NETNS,'name':BRIDGE_L2_E,'type':'bridge'}
+                 {'netns':NETNS,'name':BRIDGE_E,'type':'bridge'}
                  ]:
         create_interface(INTF.get('netns'),INTF.get('name'),INTF.get('type'))
 
@@ -136,13 +144,13 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     bridge vlan del dev {BRIDGE_L2_I} vid 1 self
     ip link set {VETH_L2}_i master {BRIDGE_L2_I}
     ip link set {VETH_L2}_e netns {NETNS}
-    ip netns exec {NETNS} ip link set {VETH_L2}_e master {BRIDGE_L2_E}
+    ip netns exec {NETNS} ip link set {VETH_L2}_e master {BRIDGE_E}
     ''', shell=True)
 
     logger.info(f"Configure SNAT in netns {NETNS}")
     subprocess.call(f'''
-    ip netns exec {NETNS} ip link set {EXTERNAL_NIC} master {BRIDGE_L2_E}
-    ip netns exec {NETNS} iptables -t nat -A POSTROUTING -o {BRIDGE_L2_E} -j MASQUERADE
+    ip netns exec {NETNS} ip link set {EXTERNAL_NIC} master {BRIDGE_E}
+    ip netns exec {NETNS} iptables -t nat -A POSTROUTING -o {BRIDGE_E} -j MASQUERADE
     ''', shell=True)
 
     logger.info(f"Set devices up")
@@ -154,11 +162,11 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     ip netns exec {NETNS} ip link set dev {VETH_NAT}_e up
     ip netns exec {NETNS} ip link set dev {VETH_L2}_e up
     ip netns exec {NETNS} ip link set dev {EXTERNAL_NIC} up
-    ip netns exec {NETNS} ip link set dev {BRIDGE_L2_E} up
+    ip netns exec {NETNS} ip link set dev {BRIDGE_E} up
     ''', shell=True)
 
-    if False:#local_system_config in locals():
-        CLUSTER_MEMBER_ID = local_system_config.get('cluster').get('member')
+    if LOCAL_SYSTEM_CONFIG:
+        CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
         VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
         BRIDGE_NAT_I = BRIDGE_NAT_I.format(ID)
         logger.info(f"Creating vlan interface: {TRUNKBRIGE}.{VID} with master {BRIDGE_NAT_I}")
@@ -176,7 +184,7 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
         ip link set dev {TRUNKBRIGE}.{VID} up
         ''', shell=True)
 
-        all_members = list(range(1,local_system_config.get('cluster').get('size')+1))
+        all_members = list(range(1,LOCAL_SYSTEM_CONFIG.get('cluster').get('size')+1))
         for CID in [member for member in all_members if member != CLUSTER_MEMBER_ID]:
             try:
                 for DATA in [[f"{CID}{ID:02}",f"br-WAN{CID}{ID:02}_nat_i"],
@@ -200,28 +208,26 @@ def create_wanport (ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
             except Exception as e:
                 logger.error(e)
 
-    with open(f'/opt/ncubed/network.service/dnsmasq/{DOMAIN}.conf', 'w') as f:
-        f.write(f'''\
-strict-order
-user=libvirt-dnsmasq
-pid-file=/opt/ncubed/network.service/dnsmasq/{DOMAIN}.pid
-except-interface=lo
-bind-dynamic
-interface={VETH_NAT}_e
-dhcp-range={TRANSIT_PREFIX}.100,{TRANSIT_PREFIX}.199,255.255.255.0
-dhcp-no-override
-dhcp-authoritative
-dhcp-lease-max=253
-server=8.8.8.8
-server=9.9.9.9
-''')
     logger.info(f"start dnsmasq in namespace {DOMAIN}")
-    subprocess.Popen(f'''
-    ip netns exec {NETNS} /usr/sbin/dnsmasq --conf-file=/opt/ncubed/network.service/dnsmasq/{DOMAIN}.conf
+    subprocess.run(f'''
+    ip netns exec {NETNS} /usr/sbin/dnsmasq --user=libvirt-dnsmasq \
+                                            --except-interface=lo \
+                                            --interface={VETH_NAT}_e \
+                                            --bind-interfaces \
+                                            --dhcp-range={TRANSIT_PREFIX}.100,{TRANSIT_PREFIX}.199,255.255.255.0 \
+                                            --dhcp-no-override \
+                                            --dhcp-authoritative \
+                                            --dhcp-lease-max=20 \
+                                            --log-facility=/var/log/ncubed-dnsmasq.log
     ''', shell=True)
     logger.info(f"Finished adding {NETNS}")
+
+    # signal thread init has finished
+    status.set()
+
     logger.info(100*'#')
     logger.info(f"Starting external interface deamon {NETNS}")
+
     configure_wan_ip(DOMAIN, EXTERNAL_NIC)
 
 def check_interface_is_up(NETNS, INTF):
@@ -237,63 +243,97 @@ def log_netns_ip_addr(NETNS):
         ip netns exec {NETNS} ip -br addr
     ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode())
 
+def get_yaml_config(file):
+     if os.path.exists(file):
+         with open(file) as f:
+             wan_config = yaml.load(f, Loader=yaml.FullLoader)
+     else:
+         wan_config = {}
+     return wan_config
+
+def set_dns_servers(NETNS,dns_servers):
+    resolve_file_path = f"/etc/netns/{NETNS}"
+    resolve_file = f"{resolve_file_path}/resolv.conf"
+
+    if not os.path.exists(resolve_file_path):
+        os.makedirs(resolve_file_path)
+
+    if os.path.exists(resolve_file):
+        with open(resolve_file, 'r') as f:
+            configured_dns_servers = f.read()
+    else:
+        configured_dns_servers=''
+
+    dns_servers = ''.join([f"nameserver {s}\n" for s in dns_servers])
+
+    if dns_servers != configured_dns_servers:
+        with open(resolve_file, 'w') as f:
+            f.write(dns_servers)
+            logger.info(f'Configured dns servers in netnamespace {NETNS}')
+
 def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
     # get ip on outside nic
     logger.info(f"Setting ip's in {DOMAIN}")
     NETNS=f"ns_{DOMAIN}"
-    BRIDGE_L2_E=f"br-{DOMAIN}_e"
+    BRIDGE_E=f"br-{DOMAIN}_e"
 
     # Checking configured IP's
     while True:
         try:
+            # check if intf is up and conifgure ip from config file
             if check_interface_is_up(NETNS,EXTERNAL_NIC):
                 # set external brigde up
-                subprocess.call(f'''ip netns exec {NETNS} ip link set dev {BRIDGE_L2_E} up''', shell=True)
-                if os.path.exists(f'/opt/ncubed/config/{DOMAIN}.yaml'):
-                    with open(f'/opt/ncubed/config/{DOMAIN}.yaml') as f:
-                        wan_config = yaml.load(f, Loader=yaml.FullLoader)
-                    if wan_config.get('settings', {})['ip'] != check_ip_configured(DOMAIN):
-                        if wan_config.get('settings', {}).get('ip', None) and wan_config.get('settings', {}).get('gateway', None):
-                            subprocess.call(f'''
-                                ip netns exec {NETNS} ip addr add {wan_config.get('settings', {})['ip']} dev {BRIDGE_L2_E}
-                                ip netns exec {NETNS} ip route add 0.0.0.0/0 via {wan_config.get('settings', {})['gateway']} dev {BRIDGE_L2_E}
-                            ''', shell=True)
-                            log_netns_ip_addr(NETNS)
-                            continue
+                subprocess.call(f'''ip netns exec {NETNS} ip link set dev {BRIDGE_E} up''', shell=True)
 
-                logger.info(f'Trying DHCP on {BRIDGE_L2_E}')
-                with subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_L2_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
-                    lines = []
-                    for line in p.stdout:
-                        lines.append(line)
-                        if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
-                            p.terminate()
-                            break
-                        if 'DHCPACK' in line:
-                            break
+                wan_config = get_yaml_config(f'{LOCAL_CONFIG_FOLDER}/{DOMAIN}.yaml')
+                dns_servers = wan_config.get('settings', {}).get('dnsservers', ["1.1.1.1","8.8.8.8","9.9.9.9"])
 
-                    if 'DHCPACK' in line:
-                        # keep DHCP service running as long as nic stays up
-                        while check_interface_is_up(NETNS,EXTERNAL_NIC):
-                            time.sleep(5)
-                        p.terminate()
-                        continue
+                if wan_config.get('settings', {}).get('ip', None) and wan_config.get('settings', {}).get('gateway', None):
+                    if wan_config.get('settings', {})['ip'] not in check_ip_configured(DOMAIN):
+                        subprocess.call(f'''
+                            ip netns exec {NETNS} ip addr add {wan_config.get('settings', {})['ip']} dev {BRIDGE_E}
+                            ip netns exec {NETNS} ip route add 0.0.0.0/0 via {wan_config.get('settings', {})['gateway']} dev {BRIDGE_E}
+                        ''', shell=True)
+                        log_netns_ip_addr(NETNS)
 
                 if not check_ip_configured(DOMAIN):
-                    logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_L2_E}')
+                    logger.info(f'Trying DHCP on {BRIDGE_E}')
+                    with subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+                        lines = []
+                        for line in p.stdout:
+                            lines.append(line)
+                            if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
+                                p.terminate()
+                                break
+                            if 'DHCPACK' in line:
+                                break
+
+                        if 'DHCPACK' in line:
+                            # keep DHCP service running as long as nic stays up
+                            while check_interface_is_up(NETNS,EXTERNAL_NIC):
+                                time.sleep(5)
+                            p.terminate()
+                            continue
+
+                if not check_ip_configured(DOMAIN):
+                    logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_E}')
                     detect_subnet.configure_wan_interface(DOMAIN)
 
-            elif check_interface_is_up(NETNS, BRIDGE_L2_E):
-                logger.info(f'External interface is down, unconfiguring {BRIDGE_L2_E}')
-                subprocess.call(f'''
-                    ip netns exec {NETNS} ip addr flush dev {BRIDGE_L2_E}
-                    ip netns exec {NETNS} ip link set dev {BRIDGE_L2_E} down
-                ''', shell=True)
+                # configure dns servers
+                if check_ip_configured(DOMAIN):
+                    set_dns_servers(NETNS,dns_servers)
 
-            time.sleep(5)
+            elif check_interface_is_up(NETNS, BRIDGE_E):
+                logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
+                subprocess.call(f'''
+                    ip netns exec {NETNS} ip addr flush dev {BRIDGE_E}
+                    ip netns exec {NETNS} ip link set dev {BRIDGE_E} down
+                ''', shell=True)
 
         except Exception as e:
             logger.error(e)
+
+        time.sleep(5)
 
 def mergeDictionary(dict_1, dict_2):
     dict_3 = {**dict_1, **dict_2}
@@ -399,21 +439,24 @@ if __name__ == '__main__':
 
         TRUNKBRIGE = DEV_CONFIG[0]['portconfig']['INT'][0]
 
-        threads = []
+        processes = []
         for k,v in DEV_CONFIG[0]['portconfig']['WAN'].items():
-            thread = Thread(target=create_wanport, args=(k,v, TRUNKBRIGE))
-            thread.start()
-            threads.append(thread)
+            status = multiprocessing.Event()
+            process = multiprocessing.Process(name=f'Setup WAN{k}', target=create_wanport, args=(status,k,v, TRUNKBRIGE))
+            process.start()
+            processes.append([process,status])
+
+        # wait for all threads to have finished initial setup
+        while not all([ s.is_set() for t,s in processes ]):
             time.sleep(1)
 
     try:
         # this is only as a last resort, or for during testing
-        CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
         if os.path.exists(CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE):
             subprocess.run(f"python3 {CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE}", shell=True)
     except Exception as e:
         logger.warning(f"Error running custom network script: {e}")
 
-    while True:
-        # keep runnning because of subprocesses
-        time.sleep(5)
+    # notify systemd daemon is ready
+    import systemd.daemon
+    systemd.daemon.notify('READY=1')

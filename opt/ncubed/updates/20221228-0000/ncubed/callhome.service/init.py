@@ -19,6 +19,8 @@ WG_CONFIG_FILE="/etc/wireguard/wg0.conf"
 WG_PRIVATE_KEY_FILE="/etc/wireguard/netcube01.private.key"
 WG_PUBLIC_KEY_FILE="/etc/wireguard/netcube01.public.key"
 
+ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
+
 
 logger = logging.getLogger("ncubed callhome")
 logger.setLevel(level=logging.DEBUG)
@@ -52,9 +54,11 @@ def get_existing_wireguard_interfaces():
 def check_connection():
     if subprocess.run(f"ping {ORCHESTRATION_V6_PREFIX} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
         logger.debug("Connection dead")
+        set_led('orange')
         return 0
     else:
         logger.debug("Connection alive")
+        set_led('purple')
         return 1
 
 def check_active_uplinks():
@@ -85,12 +89,10 @@ def callhome(net_namespace):
     body = f'{{"asset_tag": "{servicetag}","client_pub_key": "{pub_key.strip()}"}}'
 
     logger.debug(f"Calling attestation server from: {net_namespace}")
-
-    # is needed because the resolve file keeps autocleaning?!?
-    subprocess.run(f"echo nameserver 1.1.1.1 > /etc/resolv.conf", shell=True)
-    attestation_result = subprocess.run(f"ip netns exec {net_namespace} curl -X POST 'https://{ATTESTATION_SERVER}/api/v1/clientapi/register' \
-                            -H 'Content-Type: application/json' \
-                            -d '{body}'", shell=True, capture_output=True, text=True).stdout
+    attestation_result = subprocess.run(f"ip netns exec {net_namespace} curl \
+                                        -X POST 'https://{ATTESTATION_SERVER}/api/v1/clientapi/register' \
+                                        -H 'Content-Type: application/json' \
+                                        -d '{body}'", shell=True, capture_output=True, text=True).stdout
     logger.debug(f"Attestion response: {attestation_result}")
     try:
         orch_server=json.loads(attestation_result)
@@ -112,20 +114,6 @@ def callhome(net_namespace):
         return False
 
 def get_orch_info(interface):
-    logger.debug(f'Trying to find config for {interface}')
-    ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
-
-    # Legacy check
-    if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/{interface}.yaml'):
-        with open(f'{LOCAL_CONFIG_FOLDER}/{interface}.yaml') as f:
-            orch_info = yaml.load(f, Loader=yaml.FullLoader)
-            if orch_info.get('result', {}).get('orchestration_server', None) and orch_info.get('result', {}).get('server_pub_key', None):
-                logger.debug(f'found legacy config')
-                attestation_server_result = orch_info.get('result')
-                with open(f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml', 'w') as f:
-                    yaml.dump(attestation_server_result, f)
-                return attestation_server_result
-
     # If config exists
     if os.path.exists(ORCH_INFO_FILE):
         with open(ORCH_INFO_FILE) as f:
@@ -145,48 +133,60 @@ def get_orch_info(interface):
         with open(ORCH_INFO_FILE, 'w') as f:
                 yaml.dump(attestation_server_result, f)
         return attestation_server_result
-
+    
     # No info known and DAS is not responing correctly
     return False
 
-def create_wireguard_interface(active_uplink):
-    logger.debug(f"trying to establish new tunnel on {active_uplink}")
-    NETNS = active_uplink
-    WG_INTF_NAME = f"wg_{active_uplink}"
+def create_wireguard_interface(NETNS, config):
+    logger.debug(f"trying to establish new tunnel on {NETNS}")
+    WG_INTF_NAME = f"wg_{NETNS}"
 
-    # is needed because the resolve file keeps autocleaning?!?
-    subprocess.run(f"echo nameserver 1.1.1.1 > /etc/resolv.conf", shell=True)
-    server = f"{attestation_server_result['ip']}:{attestation_server_result['orchestration_server'].split(':')[-1]}"
-    logger.debug(f"setting up connection to: {server}")
+    server = f"{config['ip']}:{config['orchestration_server'].split(':')[-1]}"
+    logger.debug(f"Setting up connection to: {server}")
     subprocess.call(f'''
-    ip netns exec {NETNS} ip link add dev {WG_INTF_NAME} type wireguard
-    ip netns exec {NETNS} ip link set {WG_INTF_NAME} netns 1
-    ip addr add dev {WG_INTF_NAME} {ORCHESTRATION_V4_PREFIX}.0.{attestation_server_result['device_id']}/32
-    ip addr add dev {WG_INTF_NAME} {ORCHESTRATION_V6_PREFIX}{attestation_server_result['device_id']}/128
-    wg set {WG_INTF_NAME} \
-        listen-port 51820 \
-        private-key /etc/wireguard/netcube01.private.key \
-        peer {attestation_server_result['server_pub_key']} \
-        persistent-keepalive 20 \
-        allowed-ips {ORCHESTRATION_V4_PREFIX}.0.0/32,{ORCHESTRATION_V6_PREFIX}/128 \
-        endpoint {server}
-    ip link set up dev {WG_INTF_NAME}
-    ip route add {ORCHESTRATION_V4_PREFIX}.0.0/32 dev wg_{active_uplink}
-    ip route add {ORCHESTRATION_V6_PREFIX}/128 dev wg_{active_uplink}
+        ip netns exec {NETNS} ip link add dev {WG_INTF_NAME} type wireguard
+        ip netns exec {NETNS} ip link set {WG_INTF_NAME} netns 1
+        ip addr add dev {WG_INTF_NAME} {ORCHESTRATION_V4_PREFIX}.0.{config['device_id']}/32
+        ip addr add dev {WG_INTF_NAME} {ORCHESTRATION_V6_PREFIX}{config['device_id']}/128
+        wg set {WG_INTF_NAME} \
+            listen-port 51820 \
+            private-key /etc/wireguard/netcube01.private.key \
+            peer {config['server_pub_key']} \
+            persistent-keepalive 20 \
+            allowed-ips {ORCHESTRATION_V4_PREFIX}.0.0/32,{ORCHESTRATION_V6_PREFIX}/128 \
+            endpoint {server}
+        ip link set up dev {WG_INTF_NAME}
+        ip route add {ORCHESTRATION_V4_PREFIX}.0.0/32 dev {WG_INTF_NAME}
+        ip route add {ORCHESTRATION_V6_PREFIX}/128 dev {WG_INTF_NAME}
     ''', shell=True)
-    logger.debug(f"Created interface wg_{active_uplink}")
+    logger.debug(f"Created wireguard interface {WG_INTF_NAME}")
+
+def set_led(color):
+    try:
+        subprocess.run(f"/opt/ncubed/bin/led {color.lower()}", shell=True)
+    except Exception as e:
+        logger.error(e)    
+
+def clean_up_wg_quick():
+    try:
+        if os.path.exists(WG_CONFIG_FILE):
+            
+            subprocess.run(f"""
+                        wg-quick down wg0
+                        rm {WG_CONFIG_FILE}
+                        """, shell=True)
+            
+    except Exception as e:
+        logger.error(e)
 
 if __name__ == '__main__':
     logger.debug("Starting callhome service")
     subprocess.run(f"/usr/bin/efibootmgr -O", shell=True)
-
-    subprocess.run(f"/opt/ncubed/bin/led blue", shell=True)
+    clean_up_wg_quick()
+    
     while True:
-        subprocess.run(f"echo nameserver 1.1.1.1 > /etc/resolv.conf", shell=True)
         try:
             if not check_connection():
-                subprocess.run(f"/opt/ncubed/bin/led orange", shell=True)
-                subprocess.run(f"wg-quick down wg0", shell=True)
                 for active_uplink in check_active_uplinks():
                     attestation_server_result = get_orch_info(active_uplink)
                     if attestation_server_result:
@@ -195,23 +195,16 @@ if __name__ == '__main__':
                             logger.debug(f"removing {wg_interface}")
                             subprocess.run(f"ip link del {wg_interface}", shell=True)
 
-                        create_wireguard_interface(active_uplink)
+                        create_wireguard_interface(active_uplink, attestation_server_result)
                         # if connection has been made, no need to try other namespaces
                         if check_connection():
-                            subprocess.run(f"/opt/ncubed/bin/led purple", shell=True)
                             logger.debug(f"Connection succesfull!")
                             break
                     else:
-                        # No right DAS response
                         logger.debug(f"No right response from DAS")
-                        subprocess.run(f"/opt/ncubed/bin/led orange", shell=True)
-                if not check_connection():
-                    if os.path.exists("/etc/wireguard/wg0.conf"):
-                        logger.debug(f"No connection on WAN interfaces: Checking lagacy MGMT tunnel")
-                        subprocess.run(f"wg-quick up wg0", shell=True)
-            else:
-                subprocess.run(f"/opt/ncubed/bin/led purple", shell=True)
+
         except Exception as e:
-            subprocess.run(f"/opt/ncubed/bin/led red", shell=True)
+            set_led('red')
             logger.error(f"Fatal error occured during callhome: {traceback.format_exc()}")
-        time.sleep(10)
+            
+        time.sleep(5)
