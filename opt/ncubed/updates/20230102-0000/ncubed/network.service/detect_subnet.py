@@ -91,18 +91,24 @@ def flip_nics(WANINTF):
 def capture_reference_ip(WANINTF):
     # using Popen to be able to continuously monitor tcpdump output
     flip_nics(WANINTF)
-    with subprocess.Popen(f"ip netns exec ns_{WANINTF} tcpdump -i br-{WANINTF}_e -U -l", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+    with subprocess.Popen(f"ip netns exec ns_{WANINTF} tcpdump -i br-{WANINTF}_e -l arp", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+        count = 0
         for line in p.stdout:
+            count += 1
+            print(f"{count}: {line}")
             #print(line, end='')
             if len(line.split(',')) > 1:
                 words=line.split(',')[1].split()
                 if len(words) > 4:
-                    if words[2] == words[4]:
+                    if len(words[4].split('.'))==4:
+                    #if words[2] == words[4]:
                         p.terminate()
-                        return words[2]
+                        return words[4]
+            if count > 10:
+                p.terminate()
 
 def save_config(WANINTF,settings):
-    FILENAME = f'/opt/ncubed/config/{WANINTF}.yaml'
+    FILENAME = f'/opt/ncubed/config/local/{WANINTF}.yaml'
 
     with open(FILENAME,'w+') as wfile:
         with open(FILENAME,'r') as file:
@@ -114,8 +120,9 @@ def save_config(WANINTF,settings):
 
 def configure_wan_interface(WANINTF):
     reference_ip = capture_reference_ip(WANINTF)
-    settings = test_subnet(WANINTF,reference_ip)
-    save_config(WANINTF,settings)
+    if reference_ip:
+        settings = test_subnet(WANINTF,reference_ip)
+        save_config(WANINTF,settings)
 
 if __name__ == "__main__":
     configure_wan_interface('WAN0')

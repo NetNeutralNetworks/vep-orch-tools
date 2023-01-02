@@ -14,8 +14,102 @@ autoinstall:
     preserve_sources_list: false
 
   storage:
-    layout:
-      name: direct
+    config:
+      # disks
+      - id: disk0
+        type: disk
+        ptable: gpt
+        wipe: superblock
+        grub_device: true
+        preserve: false
+        path: /dev/sda
+      # partitions
+      - id: partition-0
+        device: disk0
+        size: 1G
+        wipe: superblock
+        flag: boot
+        number: 1
+        preserve: false
+        grub_device: true
+        type: partition
+      - id: partition-1
+        device: disk0
+        size: 2G
+        wipe: superblock
+        flag: ''
+        number: 2
+        preserve: false
+        type: partition
+      - id: partition-lvm
+        device: disk0
+        size: -1
+        wipe: superblock
+        flag: ''
+        number: 3
+        preserve: false
+        type: partition
+      # LVM volume groups
+      - id: lvm_volgroup-0
+        name: lvm_vg-0
+        devices:
+        - partition-lvm
+        preserve: false
+        type: lvm_volgroup
+      # lvm logical volumes
+      - id: lvm_partition-0
+        name: lvm_lv-var
+        volgroup: lvm_volgroup-0
+        size: 10%
+        wipe: superblock
+        preserve: false
+        type: lvm_partition
+      - id: lvm_partition-1
+        name: lvm_lv-root
+        volgroup: lvm_volgroup-0
+        size: -1
+        wipe: superblock
+        preserve: false
+        type: lvm_partition
+      # standard partitions
+      - id: format-efi
+        fstype: fat32
+        volume: partition-0
+        preserve: false
+        type: format
+      - id: format-boot
+        fstype: ext4
+        volume: partition-1
+        preserve: false
+        type: format
+      # logical volumes
+      - id: format-var
+        fstype: ext4
+        volume: lvm_partition-0
+        preserve: false
+        type: format
+      - id: format-root
+        fstype: ext4
+        volume: lvm_partition-1
+        preserve: false
+        type: format
+      # mounts
+      - id: mount-0
+        path: /boot/efi
+        device: format-efi
+        type: mount
+      - id: mount-1
+        path: /boot
+        device: format-boot
+        type: mount
+      - id: mount-2
+        path: /var
+        device: format-var
+        type: mount
+      - id: mount-3
+        path: /
+        device: format-root
+        type: mount  
 
   ssh:
     allow-pw: true

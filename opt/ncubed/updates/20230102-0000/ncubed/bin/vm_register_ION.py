@@ -123,12 +123,12 @@ parser = ArgumentParser(epilog=f"""
 Example: %(prog)s 'MODEL ID' 'ION key' 'secret key'
 
 models:
-1) ion 3202
-2) ion 3204
-3) ion 3208
-4) ion 7204
-5) ion 7208
-6) ion 7216
+1) ion 3102
+2) ion 3104
+3) ion 3108
+4) ion 7108 (larger disk advised)
+5) ion 7116 (larger disk advised)
+6) ion 7132 (larger disk advised)
 """)
 parser.add_argument("MODEL_ID")
 parser.add_argument("ION_KEY")
