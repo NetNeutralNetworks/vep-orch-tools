@@ -3,8 +3,39 @@ import subprocess
 import yaml
 import cmd
 import sys
+import glob
+
+class test(cmd.Cmd):
+    prompt = "ncubed test >>> "
+    def complete_upgradeable(self, text, line, start_index, end_index):
+        paths = glob.glob('/opt/ncubed/updates/*')
+        l = line.split()
+        if len(l) == 1:
+            return [ t for t in paths if text in t]
+        else:
+            options = [ t.replace('/'.join(l[1].split('/')[:-1])+'/','') for t in paths if l[1] in t]
+            return [o for o in options if o != l[1].split('/')[-1]]
+            
+    def do_upgradeable(self,sourcefolder):
+        try:
+            with open('/opt/ncubed/meta.yaml','r') as f:
+                old = yaml.safe_load(f)
+
+            with open(f'{sourcefolder}/ncubed/meta.yaml','r') as f:
+                new = yaml.safe_load(f)
+
+            if int(new.get('lowest_previous_version').replace('-','')) <= int(old.get('version').replace('-','')):
+                print('True')
+            else:
+                print('False')
+        except:
+            print('False')
+    
+    def do_exit(self, args):
+        return True
 
 class show(cmd.Cmd):
+    prompt = "ncubed show >>> "
     def do_system(self, args):
         self.do_platform(args)
         self.do_serial(args)
@@ -34,7 +65,7 @@ class show(cmd.Cmd):
                 ''', shell=True)
     
     def do_exit(self, args):
-            return True
+        return True
 
 class cli(cmd.Cmd):
     """Accepts commands via the normal interactive prompt or on the command line."""
@@ -45,9 +76,20 @@ class cli(cmd.Cmd):
     def do_show(self, args):
         if len(args) > 1:
             show().onecmd(args)
+        else:
+            show().cmdloop()
 
     def complete_show(self, text, line, start_index, end_index):
         return [ t for t in show().completenames('') if text in t]
+    
+    def do_test(self, args):
+        if len(args) > 1:
+            test().onecmd(args)
+        else:
+            test().cmdloop()
+        
+    def complete_test(self, text, line, start_index, end_index):
+        return [ t for t in test().completenames('') if text in t]
 
     def do_exit(self, args):
         return True

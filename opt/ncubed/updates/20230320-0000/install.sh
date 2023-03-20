@@ -4,8 +4,17 @@
 ##################################################################################
 [ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+#SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 ROOTDIR="/opt/ncubed"
+
+SCRIPT_DIR=$( dirname -- "$0"; )
+
+test_upgradeable=$(python3 $SCRIPT_DIR/ncubed/bin/n3.py test upgradeable $SCRIPT_DIR)
+
+if [ $test_upgradeable = 'False' ]; then
+  printf "\n\nUnable to upgrade to this version directly\n\n"
+  exit 0
+fi
 
 mkdir -p $ROOTDIR
 find $ROOTDIR -maxdepth 1 -type f -delete \( ! -iname "meta.yaml" ! -iname "system.yaml" \)
@@ -25,9 +34,9 @@ rm /etc/netplan/*
 NETPLAN_CONFIG_FILE=$ROOTDIR/config/local/netplan-config.yaml
 if [ -f $NETPLAN_CONFIG_FILE ]
 then
-  printf "$NETPLAN_CONFIG_FILE exists, using that."
+  printf "\n$NETPLAN_CONFIG_FILE exists, using that.\n\n"
 else
-  printf "using default example file"
+  printf "\nusing default example netplan file\n\n"
   cp  $ROOTDIR/config/local/netplan-config.yaml.example $NETPLAN_CONFIG_FILE
 fi
 
@@ -42,7 +51,7 @@ cp -p -r $ROOTDIR/etc/* /etc/
 chmod +x $ROOTDIR/bin/*
 
 # add cli to globally available tools
-ln $ROOTDIR/bin/n3.py /usr/local/bin/n3
+ln -b $ROOTDIR/bin/n3.py /usr/local/bin/n3
 
 # install services
 chmod +x $ROOTDIR/network.service/install
@@ -70,3 +79,4 @@ echo "preserve_hostname: true" > /etc/cloud/cloud.cfg.d/99_hostname.cfg
 
 # disable cloudinit networking
 echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-custom-networking.cfg
+
