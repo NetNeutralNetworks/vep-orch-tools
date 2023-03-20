@@ -1,0 +1,14 @@
+[Unit]
+Description=[ NCUBED ] Callhome to Orch-server
+StartLimitInterval=200
+StartLimitBurst=0
+Wants=ncubed-network.service
+After=ncubed-network.service
+
+[Service]
+ExecStart=/bin/python3 /opt/ncubed/callhome.service/init.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
