@@ -1,0 +1,65 @@
+---
+# - name: Include a play after another play
+#   ansible.builtin.import_playbook: nc-copy_firmware.yaml
+
+- name: Upgrade vep firmware
+  hosts: all
+  become: yes
+  gather_facts: no
+  serial:
+    - 1
+    - 5
+    - 30
+  order: sorted
+  vars:
+  - target_bios_version: 3.48.0.9-20
+
+  tasks:
+    # DELL firmware install has a hardcoded check for ubuntu 18 so this needs to be faked
+    - name: get current bios version
+      command: cat /sys/class/dmi/id/bios_version
+      register: current_bios_verion
+
+    - name: new bios version
+      ansible.builtin.debug:
+        var: target_bios_version
+    - name: current bios version
+      ansible.builtin.debug:
+        var: current_bios_verion.stdout
+
+
+    - name: checking bios version, will exit play if allready on right version.
+      meta: end_play
+      when: current_bios_verion.stdout == target_bios_version
+
+    - name: upgrade steps
+      block:
+      - name: backup lsb-release
+        ansible.builtin.command: cp /etc/lsb-release /etc/lsb-release.bck
+
+      - name: faking release 18.04
+        ansible.builtin.command: sed -i 's/=20.04\|=22.04/=18.04/g' /etc/lsb-release
+
+      - name: start upgrade. PIC is in AppCode now. To update the PIC firmware, it first needs to reboot to enter the BootCode.
+        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.3/vep1400x_ufw_2.3 | tee firmware_upgrade_prep.log /dev/ttyS0'
+        async: 1
+        poll: 0
+
+      - name: Wait 300 seconds, but only start checking after 30 seconds
+        ansible.builtin.wait_for_connection:
+          delay: 30
+          timeout: 300
+
+      - name: start upgrade, actual upgrade will start here
+        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.3/vep1400x_ufw_2.3 | tee firmware_upgrade.log /dev/ttyS0'
+        async: 1
+        poll: 0
+
+      - name: Wait 900 seconds, but only start checking after 300 seconds to allow fimware update to complete
+        ansible.builtin.wait_for_connection:
+          delay: 300
+          timeout: 900
+
+      always:
+      - name: revert lsb-release workarround
+        ansible.builtin.command: cp /etc/lsb-release.bck /etc/lsb-release
