@@ -71,6 +71,9 @@ touch /var/log/ncubed.libvirt.log
 sed -i '/::1/d' /etc/hosts
 echo ::1 $(hostname) >> /etc/hosts
 
+systemctl stop network-manager.service
+systemctl mask network-manager.service
+
 ######################################
 # Tweak cloudinit
 ######################################

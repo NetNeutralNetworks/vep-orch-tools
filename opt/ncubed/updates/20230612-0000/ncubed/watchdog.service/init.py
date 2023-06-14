@@ -43,17 +43,45 @@ def get_port_configs():
         logger.error(f"Unable to read: {LOCAL_CONFIG_FOLDER}/network.yaml")
         sys.exit(1)
 
-def any_wan_port_connected():
+def get_wan_ports():
     PORT_CONFIGS = get_port_configs()
 
     DEV_FAMILIY = subprocess.run(f"dmidecode -s system-family", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().strip()
     DEV_CONFIG = [PORT_CONFIG for PORT_CONFIG in PORT_CONFIGS if PORT_CONFIG.get('family') == DEV_FAMILIY]
     if DEV_CONFIG:
-        for ns, port in DEV_CONFIG[0]['portconfig']['WAN'].items():
-            port_status = subprocess.run(f"ip netns exec ns_WAN{ns} ip link show {port}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
-            if 'state UP' in port_status:
-                return True
+        return DEV_CONFIG[0]['portconfig']['WAN'].items()
+
+def cycle_wan_ports():
+    logger.warning("Cycling wan ports")
+    for ns, port in get_wan_ports():
+        # set port down
+        subprocess.run(f"ip netns exec ns_WAN{ns} ip link set {port} down", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+        sleep(1)
+        # set port up
+        subprocess.run(f"ip netns exec ns_WAN{ns} ip link set {port} up", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+def any_wan_port_connected():
+    for ns, port in get_wan_ports():
+        port_status = subprocess.run(f"ip netns exec ns_WAN{ns} ip link show {port}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
+        if 'state UP' in port_status:
+            return True
     return False
+    
+def request_reboot():
+    file_name = '/var/log/panic_reboot.time'
+    if any_wan_port_connected():
+        try:
+            t = os.path.getmtime(file_name)
+            last_rebooted = datetime.datetime.fromtimestamp(t, tz=datetime.timezone.utc)
+        except OSError:
+            last_rebooted = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc)
+
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        if (now - last_rebooted).days > 0:
+            logger.warning("Resorting to last option, rebooting platform")
+            subprocess.run(f"touch {file_name}",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+            subprocess.run(f"init 6",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
 
 def check_connection():
     if subprocess.run(f"ping {ORCHESTRATION_V6_PREFIX} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
@@ -62,6 +90,8 @@ def check_connection():
         return 1
 
 def debug_connection():
+    logger.warning("Not connected. Starting debugging")
+
     netns_info = subprocess.run(f"n3 show netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
     route_info = subprocess.run(f"ip route", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
     dns_masq = subprocess.run(f"cat /var/lib/misc/dnsmasq.leases", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
@@ -78,12 +108,14 @@ def debug_connection():
 ROUTE INFO: {NETNS} 
 \/ \/ \/ 
 {subprocess.run(f"ip netns exec {NETNS} ip route", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()}
-""")
-        netns_reachability.append(f"""
 DNS INFO: {NETNS}
 \/ \/ \/ 
 {subprocess.run(f"ip netns exec {NETNS} nslookup google.com", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()}
+TRACEROUTE INFO: {NETNS}
+\/ \/ \/ 
+{subprocess.run(f"ip netns exec {NETNS} traceroute {GW_TEST_IP}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()}
 """)
+
 
     with open('/var/log/connection_debug.log', 'w') as connection_debug_file:
         new_line = "\n"
@@ -109,8 +141,6 @@ netns info:
     subprocess.run(f"systemctl restart ncubed-network.service",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
 
 if __name__ == '__main__':
-    connection_attempt = 0
-    file_name = '/var/log/panic_reboot.time'
     while True:
         with libvirt.open() as conn:
             try:
@@ -119,26 +149,17 @@ if __name__ == '__main__':
                 logger.error(e)
         try:
             if not check_connection():
-                connection_attempt += 1
-                if connection_attempt > 5:
-                        logger.warning("5th attempt to connect failed, starting diagnosing")
-                        connection_attempt = 0
-                        debug_connection()
-                        sleep(10)
-                        if any_wan_port_connected() and not check_connection():
-                            logger.warning("Restarting ncubed-network.service did not resolve the issue")
+                debug_connection()
+                sleep(10)
+                if not check_connection():
+                    logger.warning("Restarting ncubed-network.service did not resolve the issue, logs can be found in: /var/log/connection_debug.log")
+                    cycle_wan_ports()
+                    sleep(10)
+                    if not check_connection():
+                        logger.warning("Cycling wan ports did not work...")
+                        request_reboot()
 
-                            try:
-                                t = os.path.getmtime(file_name)
-                                last_rebooted = datetime.datetime.fromtimestamp(t, tz=datetime.timezone.utc)
-                            except OSError:
-                                last_rebooted = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc)
-
-                            now = datetime.datetime.now(tz=datetime.timezone.utc)
-                            if (now - last_rebooted).days > 0:
-                                logger.warning("Resorting to last option, rebooting platform")
-                                subprocess.run(f"touch {file_name}",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-                                subprocess.run(f"init 6",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+                            
         except Exception as e:
                 logger.error(e)
                 logger.error(f"Fatal error occured during watchdog connection-test: {traceback.format_exc()}")
