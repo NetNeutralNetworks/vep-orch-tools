@@ -70,6 +70,10 @@ def create_trunkports(BONDNAME, INTERFACES, BRIDGENAME):
     ''', shell=True)
 
     for INTF in INTERFACES:
+        interface_config = json.loads(subprocess.run(f'''ip -j link show {INTF}''',stdout=subprocess.PIPE, shell=True).stdout.decode())
+        if interface_config[0].get('master', '') == BONDNAME:
+            logger.info(f"{INTF} already added to bond {BONDNAME}")
+            continue
         logger.info(f"Adding {INTF} to bond {BONDNAME}")
         subprocess.run(f'''
         ip link set {INTF} down
