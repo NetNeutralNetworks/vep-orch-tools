@@ -57,7 +57,6 @@ def check_connection():
         set_led('orange')
         return 0
     else:
-        logger.debug("Connection alive")
         set_led('purple')
         return 1
 
