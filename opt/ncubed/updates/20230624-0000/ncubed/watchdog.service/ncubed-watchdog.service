@@ -1,0 +1,13 @@
+[Unit]
+Description=[ NCUBED ] watchdog
+StartLimitInterval=200
+StartLimitBurst=5
+After=libvirt-guests.service
+
+[Service]
+ExecStart=/bin/python3 /opt/ncubed/watchdog.service/init.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
