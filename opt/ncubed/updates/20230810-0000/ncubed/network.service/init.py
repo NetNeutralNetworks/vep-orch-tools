@@ -235,9 +235,9 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     BRIDGE_E=f"br-{DOMAIN}_e"
     BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
     BRIDGE_L2_I=f"br-{DOMAIN}_l2_i"
-    VETH_NAT=f"_{DOMAIN}_nat"
+    VETH_NAT=f"veth_{DOMAIN}_nat"
     VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
-    VETH_L2=f"_{DOMAIN}_l2"
+    VETH_L2=f"veth_{DOMAIN}_l2"
 
     LOCAL_SYSTEM_CONFIG = get_local_system_config()
 
