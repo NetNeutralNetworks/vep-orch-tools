@@ -7,3 +7,5 @@ fi
 ln -s /opt/ncubed/$servicename.service/ncubed-$servicename.service $servicefile
 systemctl enable ncubed-$servicename
 systemctl restart ncubed-$servicename
+
+systemctl restart snmpd
