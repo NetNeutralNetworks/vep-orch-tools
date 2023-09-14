@@ -216,7 +216,7 @@ def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     ip netns exec {NETNS} /usr/sbin/dnsmasq --user=libvirt-dnsmasq \
                                             --except-interface=lo \
                                             --interface={VETH_NAT}_e \
-                                            --bind-interfaces \
+                                            --bind-dynamic \
                                             --dhcp-range={TRANSIT_PREFIX}.100,{TRANSIT_PREFIX}.199,255.255.255.0 \
                                             --dhcp-no-override \
                                             --dhcp-authoritative \
@@ -308,7 +308,7 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     ip netns exec {NETNS} /usr/sbin/dnsmasq --user=libvirt-dnsmasq \
                                             --except-interface=lo \
                                             --interface={VETH_NAT}_e \
-                                            --bind-interfaces \
+                                            --bind-dynamic \
                                             --dhcp-range={TRANSIT_PREFIX}.100,{TRANSIT_PREFIX}.199,255.255.255.0 \
                                             --dhcp-no-override \
                                             --dhcp-authoritative \
