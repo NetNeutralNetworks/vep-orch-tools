@@ -1,0 +1,22 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eno1:
+      optional: true
+      dhcp4: no
+    ens3:
+      optional: true
+      dhcp4: no
+    enp5s0:
+      optional: true
+      dhcp4: no
+  bridges:
+    br-MGMT:
+      optional: true
+      interfaces: [eno1,ens3,enp5s0]
+      dhcp4: yes
+      dhcp4-overrides:
+        route-metric: 200
+      parameters:
+        stp: false
