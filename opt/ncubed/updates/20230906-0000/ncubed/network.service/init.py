@@ -106,7 +106,7 @@ def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
     VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
 
-    DOMAIN=f"WAN{VID}"    
+    DOMAIN=f"WAN{VID}"
     #BRIDGE_NAT_I = BRIDGE_NAT_I.format(ID)
     if not TRANSIT_PREFIX:
         TRANSIT_PREFIX=f"100.{100+CLUSTER_MEMBER_ID}.{ID}"
@@ -114,7 +114,7 @@ def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     NETNS=f"ns_WAN{ID}"
     BRIDGE_E=f"br-WAN{ID}_e"
     BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
-    BRIDGE_L2_I=f"br-{DOMAIN}_l2_i"
+    BRIDGE_L2_I=f"br-WAN{CLUSTER_MEMBER_ID}{ID+50:02}_l2_i"
     VETH_NAT=f"_{DOMAIN}_nat"
     VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
     VETH_L2=f"_{DOMAIN}_l2"
