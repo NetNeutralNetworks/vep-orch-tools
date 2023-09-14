@@ -1,3 +1,5 @@
 ---
 version: 20230810-0000
-lowest_previous_version: 20230102-0000
+lowest_previous_version: 20230810-0000
+
+# should not install: has bugs
