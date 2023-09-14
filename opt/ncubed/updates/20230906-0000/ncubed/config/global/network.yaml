@@ -11,10 +11,10 @@
     BONDS:
       - name: bond34
         bridgename: br-trunk34
-        interfaces: []
+        interfaces: ['ens5', 'ens6']
       - name: bond56
         bridgename: br-trunk56
-        interfaces: ['ens8', 'ens8']
+        interfaces: ['ens7', 'ens8']
     INT:
       0: br-trunk34
     LAN:
