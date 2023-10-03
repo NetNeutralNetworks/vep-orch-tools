@@ -1,0 +1,16 @@
+#!/bin/bash
+set -e
+##################################################################################
+# elevate
+##################################################################################
+[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
+
+mount /dev/$1 /mnt
+if [ -d "/mnt/images" ]; then
+    $2/bin/led blink green .05 .05 & ledpid=$!
+    printf "copying images, please wait..."
+    cp -r /mnt/images $2
+    kill $ledpid
+fi
+umount /mnt
+$2/bin/led green
