@@ -5,22 +5,51 @@ from random import randint
 import logging
 from logging.handlers import RotatingFileHandler
 
-INVENTORY_FILE='/opt/ncubed/ansible/inventories/hosts.yaml'
-KNOWN_HOSTS_FILE='/etc/ssh/ssh_known_hosts'
-LOG_FILE='/var/log/ncubed.attestation_sync.log'
+from pathlib import Path
+import subprocess
 
-DAS_SERVER = "https://ncubed-das.westeurope.cloudapp.azure.com"
-TOKEN = "Hd4Ir161R8HygS8WVXmh4Rvoll1NgduHweVXGQRQREU"
-PUB_KEY = "odz9hZVQO2maqpaFIG33Tv5ihBAD+1/SxI8Ko2FSFzM="
+configfile = Path("/etc/ncubed/config/orchestration.yaml")
+WG_PRIV_KEY_FILE = '/etc/wireguard/priv.key'
+WG_PUB_KEY_FILE = '/etc/wireguard/pub.key'
+WG_QUICK_FILE = '/etc/wireguard/wg0.conf'
 
-IPV4_PREFIX="100.71"
-IPV6_PREFIX="fd71"
+# get config
+with open(configfile, 'r') as f:
+    config = yaml.safe_load(f)
+
+# generate wireguard keys
+subprocess.run(f'''
+               if [ ! -f {WG_PRIV_KEY_FILE} ]; then
+                 wg genkey > {WG_PRIV_KEY_FILE}
+               fi
+               if [ ! -f {WG_PUB_KEY_FILE} ]; then
+                 cat {WG_PRIV_KEY_FILE} | wg pubkey > {WG_PUB_KEY_FILE}
+               fi
+               ''', stdout=subprocess.PIPE, shell=True)
+
+# validate wg-quick is configured and running
+if not Path(WG_QUICK_FILE).is_file():
+    with open("/etc/wireguard/wg0.conf", 'r') as f:
+        with open(WG_PRIV_KEY_FILE, 'r') as privkey_f:
+            f.write(f"""
+                    [Interface]
+                    Address = {config.get('IPV4_PREFIX')}.0.0/16
+                    Address = {config.get('IPV6_PREFIX')}::/64
+                    ListenPort = 51820
+                    PrivateKey = {privkey_f.readline()}
+                    """)
+
+subprocess.run('systemctl start wg-quick@wg0.service', stdout=subprocess.PIPE, shell=True)
+
+# get wireguard public key
+with open(WG_PUB_KEY_FILE, 'r') as f:
+    PUB_KEY=f.readline().replace('\n','')
 
 logger = logging.getLogger("ncubed attestation sync daemon")
 logger.setLevel(level=logging.DEBUG)
 formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s,Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(message)s', 
                                 datefmt="%m/%d/%Y %H:%M:%S %p")
-rothandler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=5)
+rothandler = RotatingFileHandler(config.get('LOG_FILE'), maxBytes=100000, backupCount=5)
 rothandler.setFormatter(formatter)
 logger.addHandler(rothandler)
 logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -58,6 +87,8 @@ def update_cockpit(host, action):
     return True
 
 def update_ansible(HOST, ACTION):
+    KNOWN_HOSTS_FILE = config.get('KNOWN_HOSTS_FILE')
+    INVENTORY_FILE = config.get('INVENTORY_FILE')
     try:
         with open(INVENTORY_FILE) as f:
             inventory = yaml.load(f, Loader=yaml.FullLoader)
@@ -85,18 +116,18 @@ def active_peers():
 
 while True:
     data = {
-        'token': TOKEN,
+        'token': config.get('TOKEN'),
         'server_pub_key': PUB_KEY
     }
     r = requests.post(
-        '{}/api/v1/serverapi/getclients'.format(DAS_SERVER),
+        '{}/api/v1/serverapi/getclients'.format(config.get('DAS_SERVER')),
         json=data)
 
     results = json.loads(r.text)
 
     for result in results['results']:
-        IPV6 = "{}::{}/128".format(IPV6_PREFIX, result['device_id'])
-        IPV4 = "{}.{}.{}/32".format(IPV4_PREFIX, result['device_id'] >> 8 & 255, result['device_id'] & 255)
+        IPV6 = "{}::{}/128".format(config.get('IPV6_PREFIX'), result['device_id'])
+        IPV4 = "{}.{}.{}/32".format(config.get('IPV4_PREFIX'), result['device_id'] >> 8 & 255, result['device_id'] & 255)
         if not result['device_id']:
             continue
         if result['approved']:

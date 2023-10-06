@@ -1,0 +1,10 @@
+---
+INVENTORY_FILE: '/opt/ncubed/ansible/inventories/hosts.yaml'
+KNOWN_HOSTS_FILE: '/etc/ssh/ssh_known_hosts'
+LOG_FILE: '/var/log/ncubed.attestation_sync.log'
+
+DAS_SERVER: "https://ncubed-das.westeurope.cloudapp.azure.com"
+TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6dHJ1ZSwiaWF0IjoxNjk2NDg4MjQ0LCJqdGkiOiIyNjU1M2JlNC00NTgyLTQ2YjItOTgxNS1iZGJhOTBiMDkyMjQiLCJ0eXBlIjoiYWNjZXNzIiwic3ViIjoxLCJuYmYiOjE2OTY0ODgyNDQsImV4cCI6MTY5NjQ4OTE0NH0.PDs0PTLX2wTQssfXsExelMOifvfKr2tbkSiydhe_A8U"
+
+IPV4_PREFIX: "100.69"
+IPV6_PREFIX: "fd69"
