@@ -52,7 +52,7 @@ class show(cmd.Cmd):
 
     def do_serial(self, args):
         asset_tag=subprocess.run(f"cat /sys/devices/virtual/dmi/id/board_asset_tag", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().strip()
-        print (f"Version: {asset_tag}")
+        print (f"Asset tag: {asset_tag}")
         
     def do_platform(self, args):
         product_name=subprocess.run(f"cat /sys/devices/virtual/dmi/id/product_name", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().strip()
