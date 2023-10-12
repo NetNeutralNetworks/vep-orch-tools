@@ -82,7 +82,7 @@ def request_reboot():
     if any_wan_port_connected():
         if check_internet():
             # We have internet, so we wait untill night to reboot
-            if not is_at_night:
+            if not is_at_night():
                 return
             try:
                 t = os.path.getmtime(file_name)
