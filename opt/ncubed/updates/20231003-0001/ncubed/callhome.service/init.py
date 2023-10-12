@@ -3,6 +3,7 @@ import time, traceback
 import json, yaml, requests, re
 import os, sys
 import subprocess
+import ipaddress
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -96,8 +97,14 @@ def callhome(net_namespace):
     try:
         orch_server=json.loads(attestation_result)
         if  orch_server['message'].lower() == "success":
-            resolve_result = subprocess.run(f"ip netns exec {net_namespace} host {orch_server['result']['orchestration_server'].split(':')[0]}", capture_output=True, shell=True).stdout.decode()
-            ip = re.search(r'has address (.*)',resolve_result).group(1)
+            address = orch_server['result']['orchestration_server'].split(':')[0]
+            try: 
+                ipaddress.ip_address(address)
+                ip = address
+            except ValueError:
+                resolve_result = subprocess.run(f"ip netns exec {net_namespace} host {address}", capture_output=True, shell=True).stdout.decode()
+                ip = re.search(r'has address (.*)',resolve_result).group(1)
+                
             orch_server['result'].update({'ip':ip})
             return orch_server.get('result', False)
         elif orch_server['message'] == "Not authorized":
