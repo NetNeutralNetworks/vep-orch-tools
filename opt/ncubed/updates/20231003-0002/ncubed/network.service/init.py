@@ -99,7 +99,8 @@ def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
     logger.info(f"start dnsmasq in namespace {DOMAIN}")
     
     subprocess.run(f'''
-    ip netns exec {NETNS} /usr/sbin/dnsmasq --except-interface=lo \
+    ip netns exec {NETNS} /usr/sbin/dnsmasq --pid-file=/run/dnsmasq_ns_{DOMAIN}.pid \
+                                            --except-interface=lo \
                                             --interface={VETH_NAT}_e \
                                             --bind-dynamic \
                                             --dhcp-range={TRANSIT_PREFIX}.100,{TRANSIT_PREFIX}.199,255.255.255.0 \
