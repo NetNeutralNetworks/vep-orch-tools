@@ -1,6 +1,7 @@
 #!/bin/python3
 import subprocess
 import logging
+import ipaddress
 import sys, os, json, yaml, datetime, traceback
 from logging.handlers import RotatingFileHandler
 from time import sleep
@@ -56,7 +57,8 @@ def get_orch_servers():
         return []
     
 def orch_server_healthcheck(orch_server):
-    if subprocess.run(f"ping {orch_server['ipv6_supernet']} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
+    server_ip = str(ipaddress.ip_network(orch_server['ipv6_supernet']).network_address)
+    if subprocess.run(f"ping {server_ip} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
         logger.warning(f"No active tunnel to Orchestration server: {orch_server['orchestration_server']}")
         return 0
     else:
@@ -88,6 +90,6 @@ if __name__ == '__main__':
                 logger.info(status)
             with open(STATUS_FILE, 'w') as file:
                 json.dump(status, file)
-            sleep(4)
+            sleep(1)
         except Exception as e:
             logger.critical(f"Crash in monitoringservice: {e}")

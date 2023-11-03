@@ -57,12 +57,13 @@ def get_existing_wireguard_interfaces():
 
 def check_connection():
     results = []
+    
     try:
         with open(ORCH_INFO_FILE, 'r') as f:
             attestation = yaml.load(f)
         for server in attestation['result']['servers']:
-            
-            if subprocess.run(f"ping {server['ipv6_supernet']} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
+            orch_server = str(ipaddress.ip_network(server['ipv6_supernet']).network_address)
+            if subprocess.run(f"ping {orch_server} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
                 logger.debug(f"Orchestration server: {server['orchestration_server']} not reachable")
 
                 results.append(0)
@@ -137,21 +138,22 @@ def create_wireguard_interface(NETNS, config, device_id, id):
     logger.debug(f"Setting up connection to: {server}")
     # IPv4 is still being used for libre monitoring. This should not be used for anyhting else
     #         listen-port 51821 \
+    ipv6_network = str(ipaddress.ip_network(config['ipv6_supernet']).network_address)
     subprocess.call(f'''
         ip netns exec {NETNS} ip link add dev {WG_INTF_NAME} type wireguard
         ip netns exec {NETNS} ip link set {WG_INTF_NAME} netns 1
         ip addr add dev {WG_INTF_NAME} {ORCHESTRATION_V4_PREFIX}.0.{device_id}/32
-        ip addr add dev {WG_INTF_NAME} {config['ipv6_supernet']}{device_id}/128
+        ip addr add dev {WG_INTF_NAME} {ipv6_network}{device_id}/128
         wg set {WG_INTF_NAME} \
             listen-port {51820 + id} \
             private-key /etc/wireguard/netcube01.private.key \
             peer {config['server_pub_key']} \
             persistent-keepalive 20 \
-            allowed-ips {ORCHESTRATION_V4_PREFIX}.0.0/32,{config['ipv6_supernet']}/128 \
+            allowed-ips {ORCHESTRATION_V4_PREFIX}.0.0/32,{ipv6_network}/128 \
             endpoint {server}
         ip link set up dev {WG_INTF_NAME}
         ip route add {ORCHESTRATION_V4_PREFIX}.0.0/32 dev {WG_INTF_NAME}
-        ip route add {config['ipv6_supernet']}/128 dev {WG_INTF_NAME}
+        ip route add {ipv6_network}/128 dev {WG_INTF_NAME}
     ''', shell=True)
     logger.debug(f"Created wireguard interface {WG_INTF_NAME}")
 
@@ -176,7 +178,8 @@ def clean_up_wg_quick():
            
 def connect_to_orch_over_ns(orch_server, orch_info, ns):
     create_wireguard_interface(config=orch_server[1], device_id=orch_info.get('device_id'), NETNS=ns, id=orch_server[0])
-    if subprocess.run(f"ping {orch_server[1]['ipv6_supernet']} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
+    orch_server_ipv6 = str(ipaddress.ip_network(orch_server[1]['ipv6_supernet']).network_address)
+    if subprocess.run(f"ping {orch_server_ipv6} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
         # Not able to connect to orch_server in this netns
 
         logger.debug(f"Not able to connect to Orch: {orch_server[1]['orchestration_server']}. Removing wg tunnel.")
@@ -232,7 +235,6 @@ def refresh_attestation():
                 status = json.load(file)
     for active_uplink in status.get('active_namespaces'):
         attestation_server_result = callhome(active_uplink)
-        logger.debug(attestation_server_result)
         if attestation_server_result:
             with open(ORCH_INFO_FILE, 'w') as f:
                 yaml.dump(attestation_server_result, f)
