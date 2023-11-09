@@ -1,0 +1,11 @@
+#!/bin/bash
+servicename=network
+servicefile=/etc/systemd/system/ncubed-$servicename.service
+if [ -L $servicefile ]; then
+  rm $servicefile
+fi
+ln -s /opt/ncubed/services/$servicename.service/ncubed-$servicename.service $servicefile
+systemctl enable ncubed-$servicename
+systemctl restart ncubed-$servicename
+
+systemctl restart snmpd

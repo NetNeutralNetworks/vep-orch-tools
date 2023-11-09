@@ -1,0 +1,12 @@
+[Unit]
+Description=ncubed service to sync attestation information with orchestration server
+Wants=ncubed-network.service
+After=ncubed-network.service
+
+[Service]
+Restart=always
+RestartSec=10s
+ExecStart=/opt/ncubed/attestation-sync.service/attestation-sync.py
+
+[Install]
+WantedBy=multi-user.target

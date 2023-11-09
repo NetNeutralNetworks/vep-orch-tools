@@ -1,0 +1,81 @@
+#!/bin/python3
+import sys, json, subprocess, multiprocessing
+import systemd.daemon
+from logging.handlers import RotatingFileHandler
+import logging
+#from systemd.journal import JournalHandler
+
+logger = logging.getLogger("ncubed network daemon")
+logger.setLevel(level=logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s, Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(process)s: %(message)s',
+                                datefmt="%m/%d/%Y %H:%M:%S %p")
+rothandler = RotatingFileHandler('/var/log/ncubed.networkd.log', maxBytes=100000, backupCount=5)
+rothandler.setFormatter(formatter)
+logger.addHandler(rothandler)
+
+#journald_handler = JournalHandler()
+#journald_handler.setFormatter(formatter)
+#logger.addHandler(journald_handler)
+
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
+
+configfolder = Path("/etc/ncubed/config")
+configfolder.mkdir(exist_ok=True)
+configfile = configfolder.joinpath("network.yaml")
+
+# get config
+with open(configfile, 'r') as f:
+    config = yaml.safe_load(f)
+
+def get_netns():
+    return json.loads(subprocess.run(f'''ip -j netns''',stdout=subprocess.PIPE, shell=True).stdout.decode())
+
+def monitor_interface(NETNS, intf):
+    IP = intf.get('ip')
+    ROUTES = intf.get('routes')
+    config = {"ip":"192.168.32.2/24",
+              "gw":"192.168.32.1"}
+    with subprocess.Popen(f"ip -o -n {NETNS} monitor link", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+        for line in p.stdout:
+            if "UP,LOWER_UP" in line:
+                subprocess.run(f'''
+                ip -n {NENTS} addr flush dev {intf}
+                ip -n {NETNS} addr add {config.get("gw")} dev {intf}
+                ip -n {NETNS} route add 0.0.0.0/0 via {config.get("gw")}
+                ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+                subprocess.run(f'''
+                ip -n {NENTS} route flush dev {intf}
+                ip -n {NETNS} route add 0.0.0.0/0 via {config.get("gw")}
+                ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+                logger.info(f"interface {intf} in {NETNS} went up")
+            else:
+                logger.info(f"interface {intf} in {NETNS} went down")
+
+
+#netnamespaces:
+#- name: 'UNTRUST'
+#  interfaces:
+#  - name: 'ens6'
+#    ip: '192.168.15.201/20'
+#    routes:
+#      - to: '0.0.0.0/0'
+#        via: '192.168.0.1'
+
+
+if __name__ == '__main__':
+    for netns in config.get('netnamespaces'):
+        NETNS=netns.get('name')
+        if netns not in [netns.get('name')for netns in get_netns()]:
+            subprocess.run(f"ip netns add {NETNS}", shell=True)
+
+        for intf in interfaces:
+            INTF=intf.get('name')
+            subprocess.run(f"ip link set {INTF} netns {NETNS}", shell=True)
+
+            process = multiprocessing.Process(name=f"Monitor {INTF} in {NETNS}", target=monitor_interface, args=(NETNS, intf))
+            process.start()
+
+        # notify systemd daemon is ready
+        systemd.daemon.notify('READY=1')

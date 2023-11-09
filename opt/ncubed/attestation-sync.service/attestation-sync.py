@@ -1,5 +1,5 @@
 #!/bin/python3
-import requests, time, json, os, sys, yaml, subprocess
+import requests, time, json, os, sys, yaml, subprocess, ipaddress
 from random import randint
 
 import logging
@@ -8,10 +8,14 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import subprocess
 
-configfile = Path("/etc/ncubed/config/orchestration.yaml")
+configfolder = Path("/etc/ncubed/config")
+configfolder.mkdir(exist_ok=True)
+configfile = configfolder.joinpath("orchestration.yaml")
 WG_PRIV_KEY_FILE = '/etc/wireguard/priv.key'
 WG_PUB_KEY_FILE = '/etc/wireguard/pub.key'
-WG_QUICK_FILE = '/etc/wireguard/wg0.conf'
+WG_QUICK_FILE = Path('/etc/wireguard/wg0.conf')
+WG_QUICK_FILE.touch(exist_ok=True)
+WG_INTERFACE = 'wg0'
 
 # get config
 with open(configfile, 'r') as f:
@@ -27,19 +31,63 @@ subprocess.run(f'''
                fi
                ''', stdout=subprocess.PIPE, shell=True)
 
-# validate wg-quick is configured and running
-if not Path(WG_QUICK_FILE).is_file():
-    with open("/etc/wireguard/wg0.conf", 'r') as f:
-        with open(WG_PRIV_KEY_FILE, 'r') as privkey_f:
-            f.write(f"""
-                    [Interface]
-                    Address = {config.get('IPV4_PREFIX')}.0.0/16
-                    Address = {config.get('IPV6_PREFIX')}::/64
-                    ListenPort = 51820
-                    PrivateKey = {privkey_f.readline()}
-                    """)
+def update_ansible(HOST, ACTION):
+    KNOWN_HOSTS_FILE = config.get('KNOWN_HOSTS_FILE')
+    INVENTORY_FILE = config.get('INVENTORY_FILE')
+    Path(INVENTORY_FILE).mkdir(parents=True, exist_ok=True)
+    try:
+        with open(INVENTORY_FILE) as f:
+            inventory = yaml.load(f, Loader=yaml.FullLoader)
+        if ACTION=='add':
+            inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
+            subprocess.call(f'''
+                            sleep 10
+                            ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
+                            chmod 644 {KNOWN_HOSTS_FILE}
+                            ''', stdout=subprocess.PIPE, shell=True)
+        elif ACTION=='remove':
+            inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
+            subprocess.call(f'''
+                            ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}
+                            chmod 644 {KNOWN_HOSTS_FILE}
+                            ''', stdout=subprocess.PIPE, shell=True)
+        with open(INVENTORY_FILE, 'w') as outfile:
+            yaml.dump(inventory, outfile, default_flow_style=False)
+        return 0
+    except Exception as e:
+        return e
 
-subprocess.run('systemctl start wg-quick@wg0.service', stdout=subprocess.PIPE, shell=True)
+def update_wg_quick():
+    # validate wg-quick is configured and running
+    subprocess.run(f"""
+    ip -n UNTRUST link add dev {WG_INTERFACE} type wireguard
+    ip netns exec UNTRUST ip link set {WG_INTERFACE} netns 1
+    ip address add dev {WG_INTERFACE} {config.get('IPV4_PREFIX')}.0.0/16
+    ip address add dev {WG_INTERFACE} {config.get('IPV6_SUPERNET')}
+    wg set {WG_INTERFACE} listen-port 51820 private-key {WG_PRIV_KEY_FILE}
+    ip link set up dev {WG_INTERFACE}
+    """, stdout=subprocess.PIPE, shell=True)
+
+    
+
+    subprocess.run('systemctl start wg-quick@wg0.service', stdout=subprocess.PIPE, shell=True)
+    activepeers = subprocess.run(f"wg show wg0 allowed-ips", stdout=subprocess.PIPE, shell=True).stdout.decode().strip('\n').split('\n')
+    activepeers = [[i.split(' ') for i in p.split('\t')] for p in activepeers]
+
+    IPV6_PREFIX_NEW = config.get('IPV6_SUPERNET').replace('/64','')
+    if activepeers != [[['']]]:
+        for peer in activepeers:
+            IPV6_PREFIX_OLD = str(ipaddress.ip_interface(peer[1][1].replace('/128','/64')).network.network_address)
+            if IPV6_PREFIX_NEW is not IPV6_PREFIX_OLD:
+                update_ansible(IPV6_PREFIX_OLD, 'remove')
+                update_ansible(IPV6_PREFIX_NEW, 'add')
+                subprocess.run(f"""
+                            wg set wg0 peer {peer[0][0]} allowed-ips {peer[1][0]},{peer[1][1].replace(IPV6_PREFIX_OLD, IPV6_PREFIX_NEW)}
+                            """, stdout=subprocess.PIPE, shell=True)
+                
+        subprocess.run(f"wg-quick save {WG_INTERFACE}", stdout=subprocess.PIPE, shell=True)
+
+update_wg_quick()
 
 # get wireguard public key
 with open(WG_PUB_KEY_FILE, 'r') as f:
@@ -86,38 +134,14 @@ def update_cockpit(host, action):
         json.dump(data, file, indent=4, sort_keys=True)
     return True
 
-def update_ansible(HOST, ACTION):
-    KNOWN_HOSTS_FILE = config.get('KNOWN_HOSTS_FILE')
-    INVENTORY_FILE = config.get('INVENTORY_FILE')
-    try:
-        with open(INVENTORY_FILE) as f:
-            inventory = yaml.load(f, Loader=yaml.FullLoader)
-        if ACTION=='add':
-            inventory['all']['children']['BRANCH']['hosts'].update({HOST:{}})
-            subprocess.call(f'''
-                            sleep 10
-                            ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
-                            chmod 644 {KNOWN_HOSTS_FILE}
-                            ''', stdout=subprocess.PIPE, shell=True)
-        elif ACTION=='remove':
-            inventory['all']['children']['BRANCH']['hosts'].pop(HOST)
-            subprocess.call(f'''
-                            ssh-keygen -f {KNOWN_HOSTS_FILE} -R {HOST}
-                            chmod 644 {KNOWN_HOSTS_FILE}
-                            ''', stdout=subprocess.PIPE, shell=True)
-        with open(INVENTORY_FILE, 'w') as outfile:
-            yaml.dump(inventory, outfile, default_flow_style=False)
-        return 0
-    except Exception as e:
-        return e
-
 def active_peers():
     return [k[4].split(',')[0].split('/')[0] for k in [j for j in [i.split('\t') for i in os.popen("wg show all dump").read().split('\n')] if len(j) == 9 and j[5].isdigit and int(j[5]) > time.time()-300 ]]
 
 while True:
     data = {
         'token': config.get('TOKEN'),
-        'server_pub_key': PUB_KEY
+        'server_pub_key': PUB_KEY,
+        'ipv6_supernet': config.get('IPV6_SUPERNET','fd71:ffff::/64')
     }
     r = requests.post(
         '{}/api/v1/serverapi/getclients'.format(config.get('DAS_SERVER')),
@@ -126,7 +150,7 @@ while True:
     results = json.loads(r.text)
 
     for result in results['results']:
-        IPV6 = "{}::{}/128".format(config.get('IPV6_PREFIX'), result['device_id'])
+        IPV6 = "{}{}/128".format(config.get('IPV6_SUPERNET').split('/')[0], result['device_id'])
         IPV4 = "{}.{}.{}/32".format(config.get('IPV4_PREFIX'), result['device_id'] >> 8 & 255, result['device_id'] & 255)
         if not result['device_id']:
             continue
