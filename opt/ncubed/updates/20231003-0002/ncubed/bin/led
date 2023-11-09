@@ -7,6 +7,7 @@ set -e
 
 self=$(readlink -f $0)
 i2cdev=$(i2cdetect -l | grep iSMT | cut -d "-" -f2 | cut -f1)
+if [ ! -z $i2cdev ] ; then
 case $1 in
         --help)
         printf "
@@ -49,3 +50,4 @@ case $1 in
             done
         ;;
 esac
+fi

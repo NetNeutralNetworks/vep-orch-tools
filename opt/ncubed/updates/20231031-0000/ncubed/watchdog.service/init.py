@@ -20,6 +20,7 @@ LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
 GLOBAL_CONFIG_FOLDER = "/opt/ncubed/config/global"
 ORCHESTRATION_V4_PREFIX = "100.71"
 ORCHESTRATION_V6_PREFIX = "fd71::"
+STATUS_FILE = '/opt/ncubed/status.json'
 
 def check_vm_states(conn):
     for dom in conn.listAllDomains():
@@ -82,7 +83,7 @@ def request_reboot():
     if any_wan_port_connected():
         if check_internet():
             # We have internet, so we wait untill night to reboot
-            if not is_at_night:
+            if not is_at_night():
                 return
             try:
                 t = os.path.getmtime(file_name)
@@ -110,10 +111,13 @@ def request_reboot():
                 subprocess.run(f"init 6",stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
 
 def check_connection():
-    if subprocess.run(f"ping {ORCHESTRATION_V6_PREFIX} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
-        return 0
+    with open(STATUS_FILE, 'r') as file:
+        status = json.load(file)
+    orch_status = status.get('orch_status')
+    if orch_status == 'FULL' or orch_status == 'PARTIAL':
+        return True
     else:
-        return 1
+        return False
 
 def check_internet():
     for NETNS in get_existing_netnamespaces():

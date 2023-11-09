@@ -1,0 +1,5 @@
+---
+br-trunk56:
+  vlans:
+  - vid: 500
+  - vid: 1000
