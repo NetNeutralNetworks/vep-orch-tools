@@ -107,6 +107,7 @@ def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
                                             --dhcp-no-override \
                                             --dhcp-authoritative \
                                             --dhcp-lease-max=20 \
+                                            --resolv-file=/etc/netns/{NETNS}/resolv.conf \
                                             --log-facility=/var/log/ncubed-dnsmasq.log
     ''', shell=True)
     logger.info(f"Finished wanport cluster configuration")
@@ -370,13 +371,16 @@ def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
     # Checking configured IP's
     while True:
         try:
+            wan_config = get_yaml_config(f'{LOCAL_CONFIG_FOLDER}/{DOMAIN}.yaml')
+            # Always configure DNS servers as this is needed for dnsmasq startup
+            dns_servers = wan_config.get('settings', {}).get('dnsservers', ["1.1.1.1","8.8.8.8","9.9.9.9"])
+            set_dns_servers(NETNS,dns_servers)
             # check if intf is up and conifgure ip from config file
             if check_interface_is_up(NETNS,EXTERNAL_NIC):
                 # set external brigde up
                 subprocess.call(f'''ip netns exec {NETNS} ip link set dev {BRIDGE_E} up''', shell=True)
 
-                wan_config = get_yaml_config(f'{LOCAL_CONFIG_FOLDER}/{DOMAIN}.yaml')
-                dns_servers = wan_config.get('settings', {}).get('dnsservers', ["1.1.1.1","8.8.8.8","9.9.9.9"])
+                
 
                 if wan_config.get('settings', {}).get('ip', None) and wan_config.get('settings', {}).get('gateway', None):
                     if wan_config.get('settings', {})['ip'] not in check_ip_configured(DOMAIN):
@@ -408,10 +412,6 @@ def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
                 if not check_ip_configured(DOMAIN):
                     logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_E}')
                     detect_subnet.configure_wan_interface(DOMAIN)
-
-                # configure dns servers
-                if check_ip_configured(DOMAIN):
-                    set_dns_servers(NETNS,dns_servers)
 
             elif check_interface_is_up(NETNS, BRIDGE_E):
                 logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
