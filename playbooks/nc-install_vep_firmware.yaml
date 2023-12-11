@@ -12,7 +12,7 @@
     - 30
   order: sorted
   vars:
-  - target_bios_version: 3.48.0.9-20
+  - target_bios_version: 3.48.0.9-21
 
   tasks:
     # DELL firmware install has a hardcoded check for ubuntu 18 so this needs to be faked
@@ -41,7 +41,7 @@
         ansible.builtin.command: sed -i 's/=20.04\|=22.04/=18.04/g' /etc/lsb-release
 
       - name: start upgrade. PIC is in AppCode now. To update the PIC firmware, it first needs to reboot to enter the BootCode.
-        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.3/vep1400x_ufw_2.3 | tee firmware_upgrade_prep.log /dev/ttyS0'
+        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.4/vep1400x_ufw_2.4 | tee firmware_upgrade_prep.log /dev/ttyS0'
         async: 1
         poll: 0
 
@@ -51,7 +51,7 @@
           timeout: 300
 
       - name: start upgrade, actual upgrade will start here
-        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.3/vep1400x_ufw_2.3 | tee firmware_upgrade.log /dev/ttyS0'
+        ansible.builtin.command: tmux new -d 'yes | /opt/ncubed/FIRMWARE/ufw_2.4/vep1400x_ufw_2.4 | tee firmware_upgrade.log /dev/ttyS0'
         async: 1
         poll: 0
 
