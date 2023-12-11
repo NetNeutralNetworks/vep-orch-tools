@@ -11,6 +11,7 @@
 
   tasks:
   - set_fact:
+      NCUBED_FOLDER: /opt/ncubed
 
   - name: copy FIRMWARE
     local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh --delete ../opt/ncubed/FIRMWARE {{ ansible_user }}@[{{ inventory_hostname }}]:{{ NCUBED_FOLDER }}
