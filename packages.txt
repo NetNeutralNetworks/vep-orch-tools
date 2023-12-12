@@ -1,0 +1,4 @@
+wireguard
+python3-pip
+sshpass
+ansible
