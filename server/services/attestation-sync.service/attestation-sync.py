@@ -14,9 +14,6 @@ configfolder.mkdir(exist_ok=True)
 configfile = configfolder.joinpath("orchestration.yaml")
 WG_PRIV_KEY_FILE = '/etc/wireguard/priv.key'
 WG_PUB_KEY_FILE = '/etc/wireguard/pub.key'
-WG_QUICK_FILE = Path('/etc/wireguard/wg0.conf')
-
-# WG_QUICK_FILE.touch(exist_ok=True)
 WG_INTERFACE = 'wg0'
 
 # get config
@@ -58,7 +55,6 @@ def update_ansible(HOST, ACTION, meta_data = {}):
         logger.info("Ansible inventory file does not exists, creating new one")
         Path(_inventory_directory).mkdir(parents=True, exist_ok=True)
         with open(INVENTORY_FILE, 'x'):
-            
             pass
 
     try:
@@ -108,7 +104,6 @@ def update_wg():
 
     
 
-    # subprocess.run('systemctl start wg-quick@wg0.service', stdout=subprocess.PIPE, shell=True)
     activepeers = subprocess.run(f"wg show wg0 allowed-ips", stdout=subprocess.PIPE, shell=True).stdout.decode().strip('\n').split('\n')
     activepeers = [[i.split(' ') for i in p.split('\t')] for p in activepeers]
 
@@ -123,56 +118,18 @@ def update_wg():
                             wg set wg0 peer {peer[0][0]} allowed-ips {peer[1][0]},{peer[1][1].replace(IPV6_PREFIX_OLD, IPV6_PREFIX_NEW)}
                             """, stdout=subprocess.PIPE, shell=True)
                 
-        # subprocess.run(f"wg-quick save {WG_INTERFACE}", stdout=subprocess.PIPE, shell=True)
-
-
-
-def update_cockpit(host, action):
-    dirname = '/etc/cockpit/machines.d/'
-    filename = f'{dirname}00-autopop.json'
-
-    if not os.path.isdir(dirname):
-        return False
-
-    if os.path.isfile(filename):
-        with open(filename, "r") as file:
-            data = json.load(file)
-    else:
-        data = json.loads('{}')
-
-    if action=='add':
-        entry = {host : {
-                "visible" : True,
-                "color" : f"rgb({randint(0, 255)}, {randint(0, 255)}, {randint(0, 255)})",
-                "address" : host,
-                "label" : host,
-                "user" : "nc-admin"
-                }}
-        data.update(entry)
-    elif action=='remove':
-        if host in data:
-            data.pop(host)
-    else:
-        return False
-
-    with open(filename, "w+") as file:
-        json.dump(data, file, indent=4, sort_keys=True)
-    return True
 
 def active_peers():
     return [k[4].split(',')[0].split('/')[0] for k in [j for j in [i.split('\t') for i in os.popen("wg show all dump").read().split('\n')] if len(j) == 9 and j[5].isdigit and int(j[5]) > time.time()-300 ]]
 
+# Used in migrating from wg-quick -> Code can be removed after it has run on all Orch servers
 def migrate_from_wg_quick():
     logger = logging.getLogger("ncubed attestation sync daemon")
     logger.info("Checking to see if we need to migrate away from wg-quick")
-    # if 'No such device' in subprocess.run(f"wg show wg0 allowed-ips", stdout=subprocess.PIPE, shell=True).stdout.decode():
-    #     logger.info("wg-quick was never used")
-    #     # no wg-quick was used. Nothing to do here
-    #     return
     wg_quick_status = subprocess.run(f"systemctl status wg-quick@wg0", stdout=subprocess.PIPE, shell=True).stdout.decode()
     if 'masked' in wg_quick_status or 'inactive' in wg_quick_status:
-        logger.info("wg-quick service is not being used")
-        # Already masked so we are running the new version. Nothing to do here
+        logger.info("wg-quick service is not being used, either masked of never activated")
+        # Already disabled so we are running the new version. Nothing to do here
         return
     
     logger.info("Migrating from wg-quick to ansible inventory")
@@ -236,11 +193,8 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 # Migrate from wg-quick to custom wg init
 migrate_from_wg_quick()
 
-
-# time.sleep(60*10)
-
 # Convert old prefixes to new prefixes
-# Setup wg interface with netns
+# Setup wg interface in UNTRUST namespace
 update_wg()
 
 # Load wg connections from ansible inventory
@@ -271,14 +225,10 @@ while True:
             continue
         if result['approved']:
             os.system("wg set wg0 peer {} allowed-ips {},{}".format(result['client_pub_key'], IPV4, IPV6))
-            # os.system("wg-quick save wg0")
-            update_cockpit(IPV4.split('/')[0],"add")
             update_ansible(IPV6.split('/')[0],"add", {'wg_public_key': result['client_pub_key'], 'allowed_ips': [IPV4, IPV6]})
             logger.info(f"Added {IPV6.split('/')[0]} to inventory")
         else:
             os.system("wg set wg0 peer {} remove".format(result['client_pub_key']))
-            # os.system("wg-quick save wg0")
-            update_cockpit(IPV4.split('/')[0],"remove")
             update_ansible(IPV6.split('/')[0],"remove")
             logger.info(f"Removed {IPV6.split('/')[0]} from inventory")
 

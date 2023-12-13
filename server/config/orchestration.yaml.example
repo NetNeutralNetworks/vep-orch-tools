@@ -7,6 +7,5 @@ DAS_SERVER: "https://ncubed-das.westeurope.cloudapp.azure.com"
 TOKEN: ""
 
 IPV4_PREFIX: "100.69"
-IPV6_PREFIX: "fd69"
 
 IPV6_SUPERNET: "fd69::/64"
