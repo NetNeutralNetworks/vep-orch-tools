@@ -6,6 +6,6 @@ servicefile=/etc/systemd/system/ncubed-$servicename.service
 if [ -L $servicefile ]; then
   rm $servicefile
 fi
-ln -s $basedir/$servicename.service/ncubed-$servicename.service $servicefile
+ln -s $basedir/services/$servicename.service/ncubed-$servicename.service $servicefile
 systemctl start ncubed-$servicename
 systemctl enable ncubed-$servicename

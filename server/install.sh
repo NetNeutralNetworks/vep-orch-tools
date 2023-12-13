@@ -6,16 +6,26 @@
 
 SCRIPTPATH=$(dirname $(realpath $0))
 
-cp -p -r $SCRIPTPATH/* /opt/ncubed/
 
 basedir=/opt/ncubed
+mkdir -p $basedir
+cp -p -r $SCRIPTPATH/* $basedir/
+
+
 configdir=/etc/ncubed/config
-configfile=orchestration.yaml
+orchconfigfile=orchestration.yaml
+networkconfigfile=network.yaml
+
 
 mkdir -p $configdir
-if [ ! -f $configdir/$configfile ]; then
-  cp $basedir/config/$configfile.example $configdir/$configfile
-  nano $configdir/$configfile
+if [ ! -f $configdir/$orchconfigfile ]; then
+  cp $basedir/config/$orchconfigfile.example $configdir/$orchconfigfile
+  nano $configdir/$orchconfigfile
+fi
+
+if [ ! -f $configdir/$networkconfigfile ]; then
+  cp $basedir/config/$networkconfigfile.example $configdir/$networkconfigfile
+  nano $configdir/$networkconfigfile
 fi
 
 # Install services

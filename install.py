@@ -10,7 +10,7 @@ if os.getuid() != 0:
 print('Installing packages...')
 subprocess.run(f'''
                apt update
-               apt -y install < packages.txt
+               xargs apt -y install < packages.txt
                ''',
                stdout=subprocess.PIPE, shell=True).stdout.decode()
 

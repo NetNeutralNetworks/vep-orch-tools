@@ -6,7 +6,7 @@ After=ncubed-network.service
 [Service]
 Restart=always
 RestartSec=10s
-ExecStart=/opt/ncubed/attestation-sync.service/attestation-sync.py
+ExecStart=/opt/ncubed/services/attestation-sync.service/attestation-sync.py
 
 [Install]
 WantedBy=multi-user.target

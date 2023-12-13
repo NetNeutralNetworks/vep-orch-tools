@@ -15,7 +15,8 @@ configfile = configfolder.joinpath("orchestration.yaml")
 WG_PRIV_KEY_FILE = '/etc/wireguard/priv.key'
 WG_PUB_KEY_FILE = '/etc/wireguard/pub.key'
 WG_QUICK_FILE = Path('/etc/wireguard/wg0.conf')
-WG_QUICK_FILE.touch(exist_ok=True)
+
+# WG_QUICK_FILE.touch(exist_ok=True)
 WG_INTERFACE = 'wg0'
 
 # get config
@@ -69,11 +70,13 @@ def update_ansible(HOST, ACTION, meta_data = {}):
                 inventory = {}
                 logger.info("Ansible inventory file is empty, filling with template")
                 inventory = update_in_nested_dict(inventory, ['all','children','BRANCH','hosts'], {})
+                logger.info(f"new inventory: {inventory}")
             
         if ACTION=='add':
-            
-            inventory['all']['children']['BRANCH']['hosts'][HOST].update(meta_data)
-            # inventory['all']['children']['BRANCH']['hosts'][HOST] = meta_data
+            if inventory['all']['children']['BRANCH']['hosts'].get(HOST):
+                inventory['all']['children']['BRANCH']['hosts'][HOST].update(meta_data)
+            else:
+                inventory['all']['children']['BRANCH']['hosts'][HOST] = meta_data
             subprocess.call(f'''
                             sleep 10
                             ssh-keyscan -H {HOST} >> {KNOWN_HOSTS_FILE}
@@ -92,7 +95,7 @@ def update_ansible(HOST, ACTION, meta_data = {}):
         logger = logging.getLogger("ncubed attestation sync daemon")
         logger.error(e, exc_info=True)
 
-def update_wg_quick():
+def update_wg():
     # validate wireguard interface is configured and running
     subprocess.run(f"""
     ip -n UNTRUST link add dev {WG_INTERFACE} type wireguard
@@ -162,14 +165,17 @@ def active_peers():
 def migrate_from_wg_quick():
     logger = logging.getLogger("ncubed attestation sync daemon")
     logger.info("Checking to see if we need to migrate away from wg-quick")
+    # if 'No such device' in subprocess.run(f"wg show wg0 allowed-ips", stdout=subprocess.PIPE, shell=True).stdout.decode():
+    #     logger.info("wg-quick was never used")
+    #     # no wg-quick was used. Nothing to do here
+    #     return
     wg_quick_status = subprocess.run(f"systemctl status wg-quick@wg0", stdout=subprocess.PIPE, shell=True).stdout.decode()
-    if 'masked' in wg_quick_status:
-        logger.info("wg-quick service is already masked")
+    if 'masked' in wg_quick_status or 'inactive' in wg_quick_status:
+        logger.info("wg-quick service is not being used")
         # Already masked so we are running the new version. Nothing to do here
         return
     
     logger.info("Migrating from wg-quick to ansible inventory")
-
     activepeers = subprocess.run(f"wg show wg0 allowed-ips", stdout=subprocess.PIPE, shell=True).stdout.decode().strip('\n').split('\n')
     activepeers = [[i.split(' ') for i in p.split('\t')] for p in activepeers]
     for peer in activepeers:
@@ -235,7 +241,7 @@ migrate_from_wg_quick()
 
 # Convert old prefixes to new prefixes
 # Setup wg interface with netns
-update_wg_quick()
+update_wg()
 
 # Load wg connections from ansible inventory
 load_connections_from_inventory()
