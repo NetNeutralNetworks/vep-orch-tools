@@ -1,30 +1,37 @@
-# vep-orch-tools
-tools deployed on the orchestration servers
-
-credentials need to e loaded into the environment variables
-export ANSIBLE_USER=<username>
-export ANSIBLE_PASSWORD=<password>
-
-# Vep updates
+# Client devices
+## Vep updates
 New updates are published in /opt/ncubed/updates/$date-$time/
 
-# Services
-Within the update 3 services are defined:
-- ncubed.oneshot
+## Services
+Within the update 4 services are defined:
 - ncubed.network
 - ncubed.callhome
+- ncubed.monitoring
+- ncubed.watchdog
 
 These services are installed in bulk with the $update/install.sh script
 individual services can be installed using the $update/ncubed/$service/install.sh script
 
-## Oneshot
-Not used anymore?!?
-
-## Network
+### Network
 Network services is used to create the internal network of the VEP.
 It sets up the netnamespaces and configures the interfaces to be seperated from eachother
 
-### High-level overview
+### Callhome
+The callhome service is responsible for connecting the device to the known orchestration servers.
+In order to connect to the Orch servers this service will make a call to the attestation server which is defined in: `/opt/ncubed/config/orchestration.yaml`
+Since 20231031-0000 it is possible to allow simultanious connections to different orch-servers.
+It will try to setup these tunnels distributed over the available netns's, only using the ROOT namespace if there is no other namespace available.
+
+### Monitoring
+The monitoring service is used to keep an eye on the connection status of the device.
+After each check it will update the status file (/opt/ncubed/status.json) which can be read using `n3 orch status`
+In the future we might also include SNMP traps in this service
+
+### Watchdog
+The watchdog service is responsible for keeping the system in-line with the desired configuration.
+It will try to troubleshoot and resolve network disconnects and auto-start vm's
+
+## High-level overview
 Script checks network.yaml to map physical interface to netspaces.
 Creates bridges and veth interfaces to connect the namespaces together.
 Creates VLAN bridges according to vlan_bridges.yaml.
@@ -40,23 +47,8 @@ Config used:
  - /opt/ncubed/config/$netns.yaml
  - /opt/ncubed/config/vlan_bridges.yaml
  - /opt/ncubed/config/network.yaml
- 
- 
-## Callhome
-The callhome service uses the assettag to sign up with the DeviceAttestationServer (DAS).
-Sets up the wireguard VPN to the orchestration server received from the DAS.
-This service changes the LED color to indicate the different phases of the connection.
-Purple color means the connection to the Orchestration service is set up and the device can be accessed via the IPv6 address assigned by the DAS.
- 
-# Ansible playbooks
- To make updating devices easier and automatable Ansible-Playbooks have been created. The default inventory used is located in: /opt/ncubed/ansible/inventories
 
- ## nc-update_known_hosts.yaml
- This playbook is used to connect to devices and save the SSH fingerprint of the device.
- ## nc-update_opt_ncubed.yaml
- This playbook is used to update the VEP software on known devices. It copies the version specified in the playbook to the device and runes the <update>/install.sh script
- 
- # N3 shell
+## N3 shell
  The n3 shell was created to ease management and to allow logic proccessing within a single command that can also be used programmaticly.
  This progam is made globally available during the installation of an update and can be used interactivly using the `n3` command. Commands entered in the interactive mode have tab-completion
  It can also be used a single line command (ex. n3 show version).
@@ -64,3 +56,23 @@ Purple color means the connection to the Orchestration service is set up and the
  - troubleshooting commands
  - Editing ip config
  - VEP updating
+
+# Server
+## Installation
+To install the server follow the following steps:
+1. execute the `install.py` file which installs the required apt packages
+2. execute `server/install.sh` which copies the services to /opt/ncubed/ and links them to de systemd services
+3. The required config will opened, edit this now or you will need to restart your services later. These configs are located in /etc/ncubed/config/
+
+## Ansible playbooks
+credentials need to be loaded into the environment variables
+    export ANSIBLE_USER=<username>
+    export ANSIBLE_PASSWORD=<password>
+To make updating devices easier and automatable Ansible-Playbooks have been created. The default inventory used is located in: /opt/ncubed/ansible/inventories
+
+### nc-update_known_hosts.yaml
+ This playbook is used to connect to devices and save the SSH fingerprint of the device.
+### nc-update_opt_ncubed.yaml
+ This playbook is used to update the VEP software on known devices. It copies the version specified in the playbook to the device and runes the <update>/install.sh script
+ 
+
