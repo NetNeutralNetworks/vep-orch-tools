@@ -1,5 +1,7 @@
 #!/bin/python3
 import time
+import ipaddress
+import re
 import json, yaml
 import os, sys
 import subprocess
@@ -25,10 +27,11 @@ LOCAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/local"
 GLOBAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/global"
 LOCAL_SYSTEM_CONFIG_FILE = f'{LOCAL_CONFIG_FOLDER}/system.yaml'
 CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
+DEFAULT_DNS_SERVERS=["1.1.1.1","8.8.8.8","9.9.9.9"]
 
 
-def check_ip_configured(WANINTF):
-    ips_configured = subprocess.run(f'''ip -4 -n ns_{WANINTF} -br addr show dev br-{WANINTF}_e''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()[2:]
+def check_ip_configured(NETNS, BRIDGE_E):
+    ips_configured = subprocess.run(f'''ip -4 -n {NETNS} -br addr show dev {BRIDGE_E}''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()[2:]
     return ips_configured
 
 def create_interface(NETNS, INTF, TYPE):
@@ -243,9 +246,9 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     BRIDGE_E=f"br-{DOMAIN}_e"
     BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
     BRIDGE_L2_I=f"br-{DOMAIN}_l2_i"
-    VETH_NAT=f"veth_{DOMAIN}_nat"
+    VETH_NAT=f"_{DOMAIN}_nat"
     VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
-    VETH_L2=f"veth_{DOMAIN}_l2"
+    VETH_L2=f"_{DOMAIN}_l2"
 
     LOCAL_SYSTEM_CONFIG = get_local_system_config()
 
@@ -319,7 +322,7 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     logger.info(100*'#')
     logger.info(f"Starting external interface deamon {NETNS}")
 
-    configure_wan_ip(DOMAIN, EXTERNAL_NIC)
+    monitor_interface(DOMAIN, EXTERNAL_NIC)
 
 def check_interface_is_up(NETNS, INTF):
     if 'up' in subprocess.run(f'''ip -n {NETNS} -br addr show dev {INTF}''',
@@ -362,68 +365,128 @@ def set_dns_servers(NETNS,dns_servers):
             f.write(dns_servers)
             logger.info(f'Configured dns servers in netnamespace {NETNS}')
 
-def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
-    # get ip on outside nic
-    logger.info(f"Setting ip's in {DOMAIN}")
+def get_dhcp_leases():
+    DHCP_LEASES_FILE = '/var/lib/dhcp/dhclient.leases'
+    if os.path.exists(DHCP_LEASES_FILE):
+        with open(DHCP_LEASES_FILE, 'r') as f: 
+            return f.read().replace('  ','').replace('"','').split('lease {\n')[1:]
+    else:
+        return []
+
+def get_dhcp_dns_servers(domain):
+    nameservers = []
+    for lease in get_dhcp_leases():
+        if domain in lease:
+            nameservers += [str(ipaddress.ip_address(ip)) for ip in re.findall('domain-name-servers (.*);',lease)]
+    return nameservers
+
+def get_dhcp_ip_leases(domain):
+    ip_leases = []
+    for lease in get_dhcp_leases():
+        if domain in lease:
+            ip_leases.append(str(ipaddress.ip_interface('/'.join([''.join(i) for i in re.findall('fixed-address (.*);|subnet-mask (.*);', lease)]))))
+    return ip_leases
+
+def if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E):
+    logger.info(f'External interface is up, configuring {BRIDGE_E}')
+    subprocess.run(f'''
+        ip netns exec {NETNS} ip link set dev {BRIDGE_E} up
+        ip netns exec {NETNS} ip link set dev _{DOMAIN}_nat_e up
+        ip netns exec {NETNS} ip link set dev _{DOMAIN}_l2_e up
+    ''', shell=True)
+    configure_wan_ip(DOMAIN, EXTERNAL_NIC)
+    time.sleep(1)
+    
+def if_down(DOMAIN, NETNS, BRIDGE_E):
+    logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
+    subprocess.run(f'''
+        ip netns exec {NETNS} ip addr flush dev {BRIDGE_E}
+        ip netns exec {NETNS} ip link set dev {BRIDGE_E} down
+        ip netns exec {NETNS} ip link set dev _{DOMAIN}_nat_e down
+        ip netns exec {NETNS} ip link set dev _{DOMAIN}_l2_e down
+    ''', shell=True)
+    
+    subprocess.run(f'''
+        pgrep -f "dhclient {BRIDGE_E}" | xargs kill
+    ''', shell=True)
+    
+    set_dns_servers(NETNS,[])  
+
+def monitor_interface(DOMAIN, EXTERNAL_NIC):
     NETNS=f"ns_{DOMAIN}"
     BRIDGE_E=f"br-{DOMAIN}_e"
+    VETH_NAT=f"_{DOMAIN}_nat_e"
+    logger.info(f"Monitoring {EXTERNAL_NIC} in {NETNS}")
 
-    # Checking configured IP's
-    while True:
-        try:
-            wan_config = get_yaml_config(f'{LOCAL_CONFIG_FOLDER}/{DOMAIN}.yaml')
-            # Always configure DNS servers as this is needed for dnsmasq startup
-            dns_servers = wan_config.get('settings', {}).get('dnsservers', ["1.1.1.1","8.8.8.8","9.9.9.9"])
-            set_dns_servers(NETNS,dns_servers)
-            # check if intf is up and conifgure ip from config file
-            if check_interface_is_up(NETNS,EXTERNAL_NIC):
-                # set external brigde up
-                subprocess.call(f'''ip netns exec {NETNS} ip link set dev {BRIDGE_E} up''', shell=True)
+    if check_interface_is_up(NETNS,EXTERNAL_NIC):
+        if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E)
+    else:
+        if_down(DOMAIN, NETNS, BRIDGE_E)
 
-                
+    with subprocess.Popen(f"ip -o -n {NETNS} monitor link dev {EXTERNAL_NIC}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as mon:
+        for line in mon.stdout:
+            if "UP,LOWER_UP" in line:
+                if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E)
+            else:
+                if_down(DOMAIN, NETNS, BRIDGE_E)
+           
 
-                if wan_config.get('settings', {}).get('ip', None) and wan_config.get('settings', {}).get('gateway', None):
-                    if wan_config.get('settings', {})['ip'] not in check_ip_configured(DOMAIN):
-                        subprocess.call(f'''
-                            ip netns exec {NETNS} ip addr add {wan_config.get('settings', {})['ip']} dev {BRIDGE_E}
-                            ip netns exec {NETNS} ip route add 0.0.0.0/0 via {wan_config.get('settings', {})['gateway']} dev {BRIDGE_E}
-                        ''', shell=True)
-                        log_netns_ip_addr(NETNS)
+def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
+    try:
+        # get ip on outside nic
+        logger.info(f"Setting ip's in {DOMAIN}")
+        NETNS=f"ns_{DOMAIN}"
+        BRIDGE_E=f"br-{DOMAIN}_e"
 
-                if not check_ip_configured(DOMAIN):
-                    logger.info(f'Trying DHCP on {BRIDGE_E}')
-                    with subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
-                        lines = []
-                        for line in p.stdout:
-                            lines.append(line)
-                            if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
-                                p.terminate()
-                                break
-                            if 'DHCPACK' in line:
-                                break
+        # set external brigde up
+        wan_config = get_yaml_config(f'{LOCAL_CONFIG_FOLDER}/{DOMAIN}.yaml')
+        configured_dns_servers = wan_config.get('settings', {}).get('dnsservers', [])
 
-                        if 'DHCPACK' in line:
-                            # keep DHCP service running as long as nic stays up
-                            while check_interface_is_up(NETNS,EXTERNAL_NIC):
-                                time.sleep(5)
-                            p.terminate()
-                            continue
-
-                if not check_ip_configured(DOMAIN):
-                    logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_E}')
-                    detect_subnet.configure_wan_interface(DOMAIN)
-
-            elif check_interface_is_up(NETNS, BRIDGE_E):
-                logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
+        if wan_config.get('settings', {}).get('ip', None) and wan_config.get('settings', {}).get('gateway', None):
+            if wan_config.get('settings', {})['ip'] not in check_ip_configured(NETNS, BRIDGE_E):
                 subprocess.call(f'''
-                    ip netns exec {NETNS} ip addr flush dev {BRIDGE_E}
-                    ip netns exec {NETNS} ip link set dev {BRIDGE_E} down
+                    ip netns exec {NETNS} ip addr add {wan_config.get('settings', {})['ip']} dev {BRIDGE_E}
+                    ip netns exec {NETNS} ip route add 0.0.0.0/0 via {wan_config.get('settings', {})['gateway']} dev {BRIDGE_E}
                 ''', shell=True)
+                log_netns_ip_addr(NETNS)
 
-        except Exception as e:
-            logger.error(e)
+        # check if no ip is configured and when there is check if that has been issued by dhcp
+        if not check_ip_configured(NETNS, BRIDGE_E) or any(True for ip in get_dhcp_ip_leases(DOMAIN) if ip in check_ip_configured(NETNS, BRIDGE_E)) and len(subprocess.run(f'''pgrep -f "dhclient {BRIDGE_E}"    ''', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.decode().split('\n')) < 3:
+            logger.info(f'Trying DHCP on {BRIDGE_E}')
+            p = subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
+            lines = []
+            for line in p.stdout:
+                lines.append(line)
+                if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
+                    p.terminate()
+                    break
+                
+                if 'DHCPACK' in line:             
+                    if not configured_dns_servers:
+                        set_dns_servers(NETNS,get_dhcp_dns_servers(DOMAIN))
+                    else:
+                        set_dns_servers(NETNS,configured_dns_servers)
+                    p.terminate()
+                    return
+                        
+                    # keep DHCP service running as long as nic stays up
+                    # while check_interface_is_up(NETNS,EXTERNAL_NIC):
+                    #     time.sleep(5)
+                    # p.terminate()
 
-        time.sleep(5)
+        if not check_ip_configured(NETNS, BRIDGE_E):
+            logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_E}')
+            detect_subnet.configure_wan_interface(DOMAIN)
+
+        # configure dns servers
+        if check_ip_configured(NETNS, BRIDGE_E):
+            if configured_dns_servers:
+                set_dns_servers(NETNS, configured_dns_servers)
+            else:
+                set_dns_servers(NETNS, DEFAULT_DNS_SERVERS)
+            
+    except Exception as e:
+        logger.error(e)
 
 def mergeDictionary(dict_1, dict_2):
     dict_3 = {**dict_1, **dict_2}
@@ -437,36 +500,29 @@ def mergeDictionary(dict_1, dict_2):
                 dict_3[key] = mergeDictionary(value , dict_1[key])
     return dict_3
 
-def create_vlan_bridges():
-    VLAN_BRIDGES_LOCAL_FILE = f'{LOCAL_CONFIG_FOLDER}/vlan_bridges.yaml'
-    VLAN_BRIDGES_GLOBAL_FILE = f'{GLOBAL_CONFIG_FOLDER}/vlan_bridges.yaml'
-    local_vlan_bridges = {}
-    global_vlan_bridges = {}
+def load_vlan_bridges_from_config(FILENAME):
+    if os.path.exists(FILENAME):
+        with open(FILENAME) as f:
+            logger.info(f"found defined vlan bridges in {FILENAME}")
+            return yaml.load(f, Loader=yaml.FullLoader)
+    else:
+        return {}
 
-    # load global list
-    if os.path.exists(VLAN_BRIDGES_LOCAL_FILE):
-        with open(VLAN_BRIDGES_LOCAL_FILE) as f:
-            logger.info(f"found config for adding localy defined vlan bridges")
-            local_vlan_bridges = yaml.load(f, Loader=yaml.FullLoader)
-    # load local list
-    if os.path.exists(VLAN_BRIDGES_GLOBAL_FILE):
-        with open(VLAN_BRIDGES_GLOBAL_FILE) as f:
-            logger.info(f"found config for adding globaly defined vlan bridges")
-            global_vlan_bridges = yaml.load(f, Loader=yaml.FullLoader)
+def create_vlan_bridges():
+    local_vlan_bridges = load_vlan_bridges_from_config(f'{LOCAL_CONFIG_FOLDER}/vlan_bridges.yaml')
+    global_vlan_bridges = load_vlan_bridges_from_config(f'{GLOBAL_CONFIG_FOLDER}/vlan_bridges.yaml')
 
     # merge vlan interace lists
     vlan_bridges = mergeDictionary(global_vlan_bridges, local_vlan_bridges)
     configured_vlan_interfaces = [f"{k}.{i.get('vid')}" for k,v in vlan_bridges.items() for i in v.get('vlans')]
     existing_vlan_interfaces = [interface for interface in netifaces.interfaces() if '.' in interface]
-    bridge_reserved_ranges = {k:[i for r in v.get('reserved',{}) for i in list(range(*[int(s)for s in r.get('range','').split('-')]))] for k,v in global_vlan_bridges.items()}
+    bridge_reserved_ranges = {k:[i for r in v.get('reserved',{}) for i in range(*map(int,r.get('range','').split('-')))] for k,v in vlan_bridges.items()}
 
     # remove vlan bridges and interfaces not in list
     for existing_vlan_interface in existing_vlan_interfaces:
         try:
             bridge, vlan = existing_vlan_interface.split('.')
-            if int(vlan) in bridge_reserved_ranges[bridge]:
-                logger.info(f"Ignoring reserved vlan interface: {bridge}.{vlan}")
-            elif existing_vlan_interface not in configured_vlan_interfaces:
+            if existing_vlan_interface not in configured_vlan_interfaces:
                 logger.info(f"Removing vlan interface: {bridge}.{vlan} and master br-{vlan}")
                 subprocess.run(f'''
                     ip link del link dev {existing_vlan_interface}
@@ -479,7 +535,9 @@ def create_vlan_bridges():
     for vlan_interface in configured_vlan_interfaces:
         try:
             bridge, vlan = vlan_interface.split('.')
-            if vlan_interface not in existing_vlan_interfaces:
+            if int(vlan) in bridge_reserved_ranges[bridge]:
+                logger.info(f"Ignoring reserved vlan interface: {bridge}.{vlan}")
+            elif vlan_interface not in existing_vlan_interfaces:
                 logger.info(f"Creating vlan interface: {bridge}.{vlan} with master br-{vlan}")
                 subprocess.run(f'''
                     ip link add name br-{vlan} type bridge
@@ -532,6 +590,7 @@ if __name__ == '__main__':
         TRANSIT_PREFIX=DEV_CONFIG[0].get('internal_prefix',None)
 
         processes = []
+        
         for k,v in DEV_CONFIG[0]['portconfig']['WAN'].items():
             status = multiprocessing.Event()
             process = multiprocessing.Process(name=f'Setup WAN{k}', target=create_wanport, args=(status,k,v, TRUNKBRIGE, TRANSIT_PREFIX))
