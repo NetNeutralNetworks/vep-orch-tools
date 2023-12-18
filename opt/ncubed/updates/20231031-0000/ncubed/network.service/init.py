@@ -114,6 +114,55 @@ def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
     ''', shell=True)
     logger.info(f"Finished wanport cluster configuration")
 
+def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
+    # set vars
+    LOCAL_SYSTEM_CONFIG = get_local_system_config()
+    if LOCAL_SYSTEM_CONFIG:
+        # validate cluster values 
+        pass
+    else:
+        exit()
+
+    CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
+    if not TRANSIT_PREFIX:
+        TRANSIT_PREFIX=f"100.{100+CLUSTER_MEMBER_ID}.{ID}"
+
+    NETNS=f"ns_WAN{ID}"
+    BRIDGE_E=f"br-WAN{ID}_e"
+    VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
+    DOMAIN=f"WAN{VID}"
+    BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
+    BRIDGE_L2_I=f"br-WAN{CLUSTER_MEMBER_ID}{ID+50:02}_l2_i"
+    VETH_NAT=f"_{DOMAIN}_nat"
+    VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
+    VETH_L2=f"_{DOMAIN}_l2"
+
+    create_l3_circuit(NETNS, VETH_NAT, BRIDGE_NAT_I, VETH_NAT_E_IP)
+    start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX)
+    create_l2_circuit(NETNS, VETH_L2, BRIDGE_L2_I, BRIDGE_E)
+
+    # nat vlans x00-x49, l2 vlans x50-x99
+    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_NAT_I)
+    VID = f"{CLUSTER_MEMBER_ID}{ID+50:02}"
+    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_L2_I)
+
+    # create all cluster member bridges and vlans 
+    all_members = list(range(1,LOCAL_SYSTEM_CONFIG.get('cluster').get('size')+1))
+    for CID in [member for member in all_members if member != CLUSTER_MEMBER_ID]:
+        try:
+            for DATA in [[f"{CID}{ID:02}",f"br-WAN{CID}{ID:02}_nat_i"],
+                         [f"{CID}{ID+50:02}",f"br-WAN{CID}{ID+50:02}_l2_i"]
+                        ]:
+                VID = DATA[0]
+                MASTERBRIDGE = DATA[1]
+
+                create_wan_bridge(MASTERBRIDGE)
+                subprocess.run(f'''ip link set dev {MASTERBRIDGE} up''', shell=True)
+                create_vlan_interface(f"{TRUNKBRIGE}.{VID}", MASTERBRIDGE)
+                
+        except Exception as e:
+            logger.error(e)
+
 def create_vlan_interface(vlan_interface, bridge):
     logger.info(f"Creating vlan interface: {vlan_interface} with master {bridge}")
     create_interface('ROOT',f"{vlan_interface}",'vlan')
@@ -221,55 +270,6 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     logger.info(f"Starting external interface deamon {NETNS}")
 
     monitor_interface(DOMAIN, EXTERNAL_NIC)
-    
-def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
-    # set vars
-    LOCAL_SYSTEM_CONFIG = get_local_system_config()
-    if LOCAL_SYSTEM_CONFIG:
-        # validate cluster values 
-        pass
-    else:
-        exit()
-
-    CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
-    if not TRANSIT_PREFIX:
-        TRANSIT_PREFIX=f"100.{100+CLUSTER_MEMBER_ID}.{ID}"
-
-    NETNS=f"ns_WAN{ID}"
-    BRIDGE_E=f"br-WAN{ID}_e"
-    VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
-    DOMAIN=f"WAN{VID}"
-    BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
-    BRIDGE_L2_I=f"br-WAN{CLUSTER_MEMBER_ID}{ID+50:02}_l2_i"
-    VETH_NAT=f"_{DOMAIN}_nat"
-    VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
-    VETH_L2=f"_{DOMAIN}_l2"
-
-    create_l3_circuit(NETNS, VETH_NAT, BRIDGE_NAT_I, VETH_NAT_E_IP)
-    start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX)
-    create_l2_circuit(NETNS, VETH_L2, BRIDGE_L2_I, BRIDGE_E)
-
-    # nat vlans x00-x49, l2 vlans x50-x99
-    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_NAT_I)
-    VID = f"{CLUSTER_MEMBER_ID}{ID+50:02}"
-    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_L2_I)
-
-    # create all cluster member bridges and vlans 
-    all_members = list(range(1,LOCAL_SYSTEM_CONFIG.get('cluster').get('size')+1))
-    for CID in [member for member in all_members if member != CLUSTER_MEMBER_ID]:
-        try:
-            for DATA in [[f"{CID}{ID:02}",f"br-WAN{CID}{ID:02}_nat_i"],
-                         [f"{CID}{ID+50:02}",f"br-WAN{CID}{ID+50:02}_l2_i"]
-                        ]:
-                VID = DATA[0]
-                MASTERBRIDGE = DATA[1]
-
-                create_wan_bridge(MASTERBRIDGE)
-                subprocess.run(f'''ip link set dev {MASTERBRIDGE} up''', shell=True)
-                create_vlan_interface(f"{TRUNKBRIGE}.{VID}", MASTERBRIDGE)
-                
-        except Exception as e:
-            logger.error(e)
 
 def check_interface_is_up(NETNS, INTF):
     if 'up' in subprocess.run(f'''ip -n {NETNS} -br addr show dev {INTF}''',
@@ -346,7 +346,6 @@ def if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E):
         ip netns exec {NETNS} ip link set dev _{DOMAIN}_l2_e up
     ''', shell=True)
     configure_wan_ip(DOMAIN, EXTERNAL_NIC)
-    time.sleep(1)
     
 def if_down(DOMAIN, NETNS, BRIDGE_E):
     logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
@@ -359,6 +358,7 @@ def if_down(DOMAIN, NETNS, BRIDGE_E):
     
     subprocess.run(f'''
         pgrep -f "dhclient {BRIDGE_E}" | xargs kill
+        pgrep -f "tcpdump -i {BRIDGE_E}" | xargs kill
     ''', shell=True)
     
     set_dns_servers(NETNS,[])  
@@ -375,10 +375,13 @@ def monitor_interface(DOMAIN, EXTERNAL_NIC):
 
     with subprocess.Popen(f"ip -o -n {NETNS} monitor link dev {EXTERNAL_NIC}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as mon:
         for line in mon.stdout:
-            if check_interface_is_up(NETNS,EXTERNAL_NIC):
+            if "state UP group" in line and check_interface_is_up(NETNS,EXTERNAL_NIC):
                 if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E)
-            else:
+            elif "state DOWN group" in line and not check_interface_is_up(NETNS,EXTERNAL_NIC):
                 if_down(DOMAIN, NETNS, BRIDGE_E)
+            else:
+                continue
+            # interface flapping dampening
             time.sleep(2)
 
 def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
@@ -401,28 +404,22 @@ def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
                 log_netns_ip_addr(NETNS)
 
         # check if no ip is configured and when there is check if that has been issued by dhcp
-        if not check_ip_configured(NETNS, BRIDGE_E) or any(True for ip in get_dhcp_ip_leases(DOMAIN) if ip in check_ip_configured(NETNS, BRIDGE_E)) and len(subprocess.run(f'''pgrep -f "dhclient {BRIDGE_E}"    ''', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.decode().split('\n')) < 3:
+        if not check_ip_configured(NETNS, BRIDGE_E) or any(True for ip in get_dhcp_ip_leases(DOMAIN) if ip in check_ip_configured(NETNS, BRIDGE_E)):
             logger.info(f'Trying DHCP on {BRIDGE_E}')
-            p = subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
-            lines = []
-            for line in p.stdout:
-                lines.append(line)
-                if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
-                    p.terminate()
-                    break
+            if len(subprocess.run(f'''pgrep -f "dhclient {BRIDGE_E}"    ''', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.decode().split('\n')) < 3:                
+                p = subprocess.Popen(f"ip netns exec {NETNS} dhclient {BRIDGE_E} -d", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
+                lines = []
+                for line in p.stdout:
+                    lines.append(line)
+                    if len([line for line in lines if 'DHCPDISCOVER' in line]) >= 5:
+                        p.terminate()
+                        break
+                    
+                    if 'bound to' in line:           
+                        break                        
                 
-                if 'DHCPACK' in line:             
-                    if not configured_dns_servers:
-                        set_dns_servers(NETNS,get_dhcp_dns_servers(DOMAIN))
-                    else:
-                        set_dns_servers(NETNS,configured_dns_servers)
-                    p.terminate()
-                    return
-                        
-                    # keep DHCP service running as long as nic stays up
-                    # while check_interface_is_up(NETNS,EXTERNAL_NIC):
-                    #     time.sleep(5)
-                    # p.terminate()
+            if not configured_dns_servers:
+                configured_dns_servers = get_dhcp_dns_servers(DOMAIN)
 
         if not check_ip_configured(NETNS, BRIDGE_E):
             logger.info(f'no DHCP detected trying auto detect script on {BRIDGE_E}')

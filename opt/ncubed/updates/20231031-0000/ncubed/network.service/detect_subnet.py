@@ -107,22 +107,22 @@ def capture_reference_ip(WANINTF):
             if count > 10:
                 p.terminate()
 
-def save_config(WANINTF,settings):
-    FILENAME = f'/opt/ncubed/config/local/{WANINTF}.yaml'
+# def save_config(WANINTF,settings):
+#     FILENAME = f'/opt/ncubed/config/local/{WANINTF}.yaml'
 
-    with open(FILENAME,'w+') as wfile:
-        with open(FILENAME,'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
-            if not data:
-                data = {}
-            data.update({'settings':settings})
-        yaml.dump(data, wfile, sort_keys=True)  
+#     with open(FILENAME,'w+') as wfile:
+#         with open(FILENAME,'r') as file:
+#             data = yaml.load(file, Loader=yaml.FullLoader)
+#             if not data:
+#                 data = {}
+#             data.update({'settings':settings})
+#         yaml.dump(data, wfile, sort_keys=True)  
 
 def configure_wan_interface(WANINTF):
     reference_ip = capture_reference_ip(WANINTF)
     if reference_ip:
         settings = test_subnet(WANINTF,reference_ip)
-        save_config(WANINTF,settings)
+        #save_config(WANINTF,settings)
 
 if __name__ == "__main__":
     configure_wan_interface('WAN0')

@@ -11,5 +11,4 @@ br-trunk34:
   - name: HA3
     vid: 4053
 br-trunk56:
-  vlans:
-    - vid: 10
+  vlans: []
