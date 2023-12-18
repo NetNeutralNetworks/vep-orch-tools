@@ -29,7 +29,6 @@ LOCAL_SYSTEM_CONFIG_FILE = f'{LOCAL_CONFIG_FOLDER}/system.yaml'
 CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
 DEFAULT_DNS_SERVERS=["1.1.1.1","8.8.8.8","9.9.9.9"]
 
-
 def check_ip_configured(NETNS, BRIDGE_E):
     ips_configured = subprocess.run(f'''ip -4 -n {NETNS} -br addr show dev {BRIDGE_E}''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()[2:]
     return ips_configured
@@ -39,7 +38,7 @@ def create_interface(NETNS, INTF, TYPE):
     if interface_list:
         existing_interfaces = [i.get('ifname') for i in json.loads(interface_list)]
         if TYPE=='veth' and f"{INTF}_i" not in existing_interfaces and f"{INTF}_e" not in existing_interfaces:
-            logger.info(f"Creating {INTF} pair of type {TYPE} in netns {NETNS}")
+            logger.info(f"Creating {INTF} pair of type {TYPE} in netns {NETNS}")            
             subprocess.run(f'''
             ip netns exec {NETNS} ip link add dev {INTF}_i type {TYPE} peer name {INTF}_e
             ''', shell=True)
@@ -115,124 +114,76 @@ def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
     ''', shell=True)
     logger.info(f"Finished wanport cluster configuration")
 
-def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
-    # set vars
-    LOCAL_SYSTEM_CONFIG = get_local_system_config()
-    if LOCAL_SYSTEM_CONFIG:
-        # validate cluster values 
-        pass
-    else:
-        exit()
+def create_vlan_interface(vlan_interface, bridge):
+    logger.info(f"Creating vlan interface: {vlan_interface} with master {bridge}")
+    create_interface('ROOT',f"{vlan_interface}",'vlan')
+    subprocess.call(f'''
+    ip link set dev {vlan_interface} master {bridge}
+    ip link set dev {vlan_interface} up
+    ''', shell=True)
+   
+def create_wan_bridge(bridge):
+    create_interface('ROOT',bridge,'bridge')
+    logger.info(f"Configuring WAN bridge")
+    subprocess.run(f'''
+    #sysctl -w net.ipv6.conf.{bridge}.disable_ipv6=1
+    ip link set dev {bridge} type bridge vlan_filtering 1 stp_state 0 priority 65535
+    bridge vlan del dev {bridge} vid 1 self
+    ''', shell=True)
+    
+def veth_ok(bridge, veth):
+    try:
+        for intf in json.loads(subprocess.run(f"ip -j link show type veth master {bridge}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()):
+            ifname = intf.get('ifname')
+            if ifname != veth:
+                subprocess.run(f"ip link del {ifname}", shell=True)
+        return True
+    except:
+        return False
 
-    CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
-    VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
+def create_wan_circuit(netns, veth, bridge):
+    create_wan_bridge(bridge)
+    if veth_ok(bridge, f"{veth}_i"):
+        create_interface('ROOT',veth,'veth')
+        subprocess.run(f'''
+        ip link set {veth}_i master {bridge}
+        ip link set {veth}_e netns {netns}
+        ''', shell=True)
 
-    DOMAIN=f"WAN{VID}"
-    #BRIDGE_NAT_I = BRIDGE_NAT_I.format(ID)
-    if not TRANSIT_PREFIX:
-        TRANSIT_PREFIX=f"100.{100+CLUSTER_MEMBER_ID}.{ID}"
-    EXTERNAL_NIC=INTF
-    NETNS=f"ns_WAN{ID}"
-    BRIDGE_E=f"br-WAN{ID}_e"
-    BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
-    BRIDGE_L2_I=f"br-WAN{CLUSTER_MEMBER_ID}{ID+50:02}_l2_i"
-    VETH_NAT=f"_{DOMAIN}_nat"
-    VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
-    VETH_L2=f"_{DOMAIN}_l2"
+def create_l2_circuit(netns, veth, bridge, external_bridge):
+    create_wan_circuit(netns, veth, bridge)
+    subprocess.run(f'''
+    ip netns exec {netns} ip link set {veth}_e master {external_bridge}
+    ''', shell=True)
 
+def create_l3_circuit(netns, veth, bridge, external_ip):
+    create_wan_circuit(netns, veth, bridge)
+    subprocess.run(f'''
+    ip netns exec {netns} ip addr add {external_ip} dev {veth}_e
+    ''', shell=True)
+
+def configure_external_bridge(netns, bridge, nic):
+    logger.info(f"Configure SNAT in netns {netns}")
+    create_interface(netns, bridge, 'bridge')
+    subprocess.call(f'''
+    ip netns exec {netns} ip link set {nic} master {bridge}
+    ip netns exec {netns} iptables -t nat -A POSTROUTING -o {bridge} -j MASQUERADE
+    ip netns exec {netns} ip link set dev {nic} up
+    ''', shell=True)
+
+def create_netns(netns, nic):
     existing_netnamespaces_json = subprocess.run(f"ip -j netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
     if existing_netnamespaces_json:
         existing_netnamespaces=json.loads(existing_netnamespaces_json)
-        if NETNS not in [NETNAMESPACE.get('name') for NETNAMESPACE in existing_netnamespaces]:
-            logger.info(f"Creating {NETNS}")
+        if netns not in [NETNAMESPACE.get('name') for NETNAMESPACE in existing_netnamespaces]:
+            logger.info(f"Creating {netns}")
             subprocess.run(f'''
-            ip netns add {NETNS}
-            ip netns exec {NETNS} sysctl -w net.ipv4.ip_forward=1
-            ip link set {EXTERNAL_NIC} netns {NETNS}
+            ip netns add {netns}
+            ip netns exec {netns} sysctl -w net.ipv4.ip_forward=1
             ''', stdout=subprocess.PIPE, shell=True)
 
-    existing_interfaces = [interface for interface in netifaces.interfaces()]
-
-    for INTF in [{'netns':'ROOT','name':BRIDGE_NAT_I,'type':'bridge'},
-                 {'netns':'ROOT','name':BRIDGE_L2_I,'type':'bridge'},
-                 {'netns':'ROOT','name':VETH_NAT,'type':'veth'},
-                 {'netns':'ROOT','name':VETH_L2,'type':'veth'}
-                 ]:
-        create_interface(INTF.get('netns'),INTF.get('name'),INTF.get('type'))
-
-    logger.info(f"Configuring WAN nat circuit")
-    subprocess.run(f'''
-    ip link set dev {BRIDGE_NAT_I} type bridge vlan_filtering 1 stp_state 0 priority 65535
-    bridge vlan del dev {BRIDGE_NAT_I} vid 1 self
-    ''', shell=True)
-    subprocess.run(f'''
-    ip link set {VETH_NAT}_i master {BRIDGE_NAT_I}
-    ip link set {VETH_NAT}_e netns {NETNS}
-    ip netns exec {NETNS} ip addr add {VETH_NAT_E_IP} dev {VETH_NAT}_e
-    ''', shell=True)
-
-    logger.info(f"Configuring WAN l2 circuit")
-    subprocess.run(f'''
-    ip link set {BRIDGE_L2_I} type bridge vlan_filtering 1 stp_state 0 priority 65535
-    bridge vlan del dev {BRIDGE_L2_I} vid 1 self
-    ip link set {VETH_L2}_i master {BRIDGE_L2_I}
-    ip link set {VETH_L2}_e netns {NETNS}
-    ip netns exec {NETNS} ip link set {VETH_L2}_e master {BRIDGE_E}
-    ''', shell=True)
-
-    logger.info(f"Set devices up")
-    subprocess.call(f'''
-    ip link set dev {BRIDGE_NAT_I} up
-    ip link set dev {BRIDGE_L2_I} up
-    ip link set dev {VETH_NAT}_i up
-    ip link set dev {VETH_L2}_i up
-    ip netns exec {NETNS} ip link set dev {VETH_NAT}_e up
-    ip netns exec {NETNS} ip link set dev {VETH_L2}_e up
-    ip netns exec {NETNS} ip link set dev {EXTERNAL_NIC} up
-    ip netns exec {NETNS} ip link set dev {BRIDGE_E} up
-    ''', shell=True)
-
-    logger.info(f"Creating vlan interface: {TRUNKBRIGE}.{VID} with master {BRIDGE_NAT_I}")
-    create_interface('ROOT',f"{TRUNKBRIGE}.{VID}",'vlan')
-    subprocess.call(f'''
-    ip link set {TRUNKBRIGE}.{VID} master {BRIDGE_NAT_I}
-    ip link set dev {TRUNKBRIGE}.{VID} up
-    ''', shell=True)
-
-    VID = f"{CLUSTER_MEMBER_ID}{ID+50:02}"
-    logger.info(f"Creating vlan interface: {TRUNKBRIGE}.{VID} with master {BRIDGE_L2_I}")
-    create_interface('ROOT',f"{TRUNKBRIGE}.{VID}",'vlan')
-    subprocess.call(f'''
-    ip link set {TRUNKBRIGE}.{VID} master {BRIDGE_L2_I}
-    ip link set dev {TRUNKBRIGE}.{VID} up
-    ''', shell=True)
-
-    # create all cluster member bridges and vlans 
-    all_members = list(range(1,LOCAL_SYSTEM_CONFIG.get('cluster').get('size')+1))
-    for CID in [member for member in all_members if member != CLUSTER_MEMBER_ID]:
-        try:
-            for DATA in [[f"{CID}{ID:02}",f"br-WAN{CID}{ID:02}_nat_i"],
-                            [f"{CID}{ID+50:02}",f"br-WAN{CID}{ID+50:02}_l2_i"]
-                            ]:
-                VID = DATA[0]
-                MASTERBRIDGE=DATA[1]
-                logger.info(f"Creating vlan interface: {TRUNKBRIGE}.{VID} with master {MASTERBRIDGE}")
-                create_interface('ROOT',MASTERBRIDGE,'bridge')
-                create_interface('ROOT',f"{TRUNKBRIGE}.{VID}",'vlan')
-
-                subprocess.run(f'''
-                    #sysctl -w net.ipv6.conf.{MASTERBRIDGE}.disable_ipv6=1
-                    ip link set {MASTERBRIDGE} type bridge vlan_filtering 1 stp_state 0 priority 65535
-                    bridge vlan del dev {MASTERBRIDGE} vid 1 self
-
-                    ip link set dev {TRUNKBRIGE}.{VID} master {MASTERBRIDGE}
-                    ip link set dev {TRUNKBRIGE}.{VID} up
-                    ip link set dev {MASTERBRIDGE} up
-                ''', shell=True)
-        except Exception as e:
-            logger.error(e)
-            
-    start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX)
+    if nic in netifaces.interfaces():
+        subprocess.run(f'''ip link set {nic} netns {netns}''', shell=True)        
 
 def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     # set vars
@@ -252,64 +203,11 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
 
     LOCAL_SYSTEM_CONFIG = get_local_system_config()
 
-    existing_netnamespaces_json = subprocess.run(f"ip -j netns", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
-    if existing_netnamespaces_json:
-        existing_netnamespaces=json.loads(existing_netnamespaces_json)
-        if NETNS not in [NETNAMESPACE.get('name') for NETNAMESPACE in existing_netnamespaces]:
-            logger.info(f"Creating {NETNS}")
-            subprocess.run(f'''
-            ip netns add {NETNS}
-            ip netns exec {NETNS} sysctl -w net.ipv4.ip_forward=1
-            ip link set {EXTERNAL_NIC} netns {NETNS}
-            ''', stdout=subprocess.PIPE, shell=True)
-
-    existing_interfaces = [interface for interface in netifaces.interfaces()]
-
-    for INTF in [{'netns':'ROOT','name':BRIDGE_NAT_I,'type':'bridge'},
-                 {'netns':'ROOT','name':BRIDGE_L2_I,'type':'bridge'},
-                 {'netns':'ROOT','name':VETH_NAT,'type':'veth'},
-                 {'netns':'ROOT','name':VETH_L2,'type':'veth'},
-                 {'netns':NETNS,'name':BRIDGE_E,'type':'bridge'}
-                 ]:
-        create_interface(INTF.get('netns'),INTF.get('name'),INTF.get('type'))
-
-    logger.info(f"Configuring WAN nat circuit")
-    subprocess.run(f'''
-    ip link set dev {BRIDGE_NAT_I} type bridge vlan_filtering 1 stp_state 0 priority 65535
-    bridge vlan del dev {BRIDGE_NAT_I} vid 1 self
-    ''', shell=True)
-    subprocess.run(f'''
-    ip link set {VETH_NAT}_i master {BRIDGE_NAT_I}
-    ip link set {VETH_NAT}_e netns {NETNS}
-    ip netns exec {NETNS} ip addr add {VETH_NAT_E_IP} dev {VETH_NAT}_e
-    ''', shell=True)
-
-    logger.info(f"Configuring WAN l2 circuit")
-    subprocess.run(f'''
-    ip link set {BRIDGE_L2_I} type bridge vlan_filtering 1 stp_state 0 priority 65535
-    bridge vlan del dev {BRIDGE_L2_I} vid 1 self
-    ip link set {VETH_L2}_i master {BRIDGE_L2_I}
-    ip link set {VETH_L2}_e netns {NETNS}
-    ip netns exec {NETNS} ip link set {VETH_L2}_e master {BRIDGE_E}
-    ''', shell=True)
-
-    logger.info(f"Configure SNAT in netns {NETNS}")
-    subprocess.call(f'''
-    ip netns exec {NETNS} ip link set {EXTERNAL_NIC} master {BRIDGE_E}
-    ip netns exec {NETNS} iptables -t nat -A POSTROUTING -o {BRIDGE_E} -j MASQUERADE
-    ''', shell=True)
-
-    logger.info(f"Set devices up")
-    subprocess.call(f'''
-    ip link set dev {BRIDGE_NAT_I} up
-    ip link set dev {BRIDGE_L2_I} up
-    ip link set dev {VETH_NAT}_i up
-    ip link set dev {VETH_L2}_i up
-    ip netns exec {NETNS} ip link set dev {VETH_NAT}_e up
-    ip netns exec {NETNS} ip link set dev {VETH_L2}_e up
-    ip netns exec {NETNS} ip link set dev {EXTERNAL_NIC} up
-    ip netns exec {NETNS} ip link set dev {BRIDGE_E} up
-    ''', shell=True)
+    create_netns(NETNS, EXTERNAL_NIC)
+    configure_external_bridge(NETNS, BRIDGE_E, EXTERNAL_NIC)
+    
+    create_l3_circuit(NETNS, VETH_NAT, BRIDGE_NAT_I, VETH_NAT_E_IP)
+    create_l2_circuit(NETNS, VETH_L2, BRIDGE_L2_I, BRIDGE_E)
 
     if LOCAL_SYSTEM_CONFIG:
         create_clustered_wanport(status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None)
@@ -323,6 +221,55 @@ def create_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
     logger.info(f"Starting external interface deamon {NETNS}")
 
     monitor_interface(DOMAIN, EXTERNAL_NIC)
+    
+def create_clustered_wanport (status,ID, INTF, TRUNKBRIGE, TRANSIT_PREFIX=None):
+    # set vars
+    LOCAL_SYSTEM_CONFIG = get_local_system_config()
+    if LOCAL_SYSTEM_CONFIG:
+        # validate cluster values 
+        pass
+    else:
+        exit()
+
+    CLUSTER_MEMBER_ID = LOCAL_SYSTEM_CONFIG.get('cluster').get('member')
+    if not TRANSIT_PREFIX:
+        TRANSIT_PREFIX=f"100.{100+CLUSTER_MEMBER_ID}.{ID}"
+
+    NETNS=f"ns_WAN{ID}"
+    BRIDGE_E=f"br-WAN{ID}_e"
+    VID = f"{CLUSTER_MEMBER_ID}{ID:02}"
+    DOMAIN=f"WAN{VID}"
+    BRIDGE_NAT_I=f"br-{DOMAIN}_nat_i"
+    BRIDGE_L2_I=f"br-WAN{CLUSTER_MEMBER_ID}{ID+50:02}_l2_i"
+    VETH_NAT=f"_{DOMAIN}_nat"
+    VETH_NAT_E_IP=f"{TRANSIT_PREFIX}.1/24"
+    VETH_L2=f"_{DOMAIN}_l2"
+
+    create_l3_circuit(NETNS, VETH_NAT, BRIDGE_NAT_I, VETH_NAT_E_IP)
+    start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX)
+    create_l2_circuit(NETNS, VETH_L2, BRIDGE_L2_I, BRIDGE_E)
+
+    # nat vlans x00-x49, l2 vlans x50-x99
+    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_NAT_I)
+    VID = f"{CLUSTER_MEMBER_ID}{ID+50:02}"
+    create_vlan_interface(f"{TRUNKBRIGE}.{VID}", BRIDGE_L2_I)
+
+    # create all cluster member bridges and vlans 
+    all_members = list(range(1,LOCAL_SYSTEM_CONFIG.get('cluster').get('size')+1))
+    for CID in [member for member in all_members if member != CLUSTER_MEMBER_ID]:
+        try:
+            for DATA in [[f"{CID}{ID:02}",f"br-WAN{CID}{ID:02}_nat_i"],
+                         [f"{CID}{ID+50:02}",f"br-WAN{CID}{ID+50:02}_l2_i"]
+                        ]:
+                VID = DATA[0]
+                MASTERBRIDGE = DATA[1]
+
+                create_wan_bridge(MASTERBRIDGE)
+                subprocess.run(f'''ip link set dev {MASTERBRIDGE} up''', shell=True)
+                create_vlan_interface(f"{TRUNKBRIGE}.{VID}", MASTERBRIDGE)
+                
+        except Exception as e:
+            logger.error(e)
 
 def check_interface_is_up(NETNS, INTF):
     if 'up' in subprocess.run(f'''ip -n {NETNS} -br addr show dev {INTF}''',
@@ -390,6 +337,10 @@ def get_dhcp_ip_leases(domain):
 def if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E):
     logger.info(f'External interface is up, configuring {BRIDGE_E}')
     subprocess.run(f'''
+        ip link set dev _{DOMAIN}_nat_i up
+        ip link set dev _{DOMAIN}_l2_i up
+        ip link set dev br-{DOMAIN}_nat_i up
+        ip link set dev br-{DOMAIN}_l2_i up
         ip netns exec {NETNS} ip link set dev {BRIDGE_E} up
         ip netns exec {NETNS} ip link set dev _{DOMAIN}_nat_e up
         ip netns exec {NETNS} ip link set dev _{DOMAIN}_l2_e up
@@ -415,7 +366,6 @@ def if_down(DOMAIN, NETNS, BRIDGE_E):
 def monitor_interface(DOMAIN, EXTERNAL_NIC):
     NETNS=f"ns_{DOMAIN}"
     BRIDGE_E=f"br-{DOMAIN}_e"
-    VETH_NAT=f"_{DOMAIN}_nat_e"
     logger.info(f"Monitoring {EXTERNAL_NIC} in {NETNS}")
 
     if check_interface_is_up(NETNS,EXTERNAL_NIC):
@@ -425,11 +375,11 @@ def monitor_interface(DOMAIN, EXTERNAL_NIC):
 
     with subprocess.Popen(f"ip -o -n {NETNS} monitor link dev {EXTERNAL_NIC}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as mon:
         for line in mon.stdout:
-            if "UP,LOWER_UP" in line:
+            if check_interface_is_up(NETNS,EXTERNAL_NIC):
                 if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E)
             else:
                 if_down(DOMAIN, NETNS, BRIDGE_E)
-           
+            time.sleep(2)
 
 def configure_wan_ip(DOMAIN, EXTERNAL_NIC):
     try:
