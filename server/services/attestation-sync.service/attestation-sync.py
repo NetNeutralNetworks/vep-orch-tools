@@ -217,8 +217,9 @@ while True:
         json=data)
 
     results = json.loads(r.text)
-
-    for result in results['results']:
+    
+    if 'results' in results
+        for result in results['results']:
         IPV6 = "{}{}/128".format(config.get('IPV6_SUPERNET').split('/')[0], result['device_id'])
         IPV4 = "{}.{}.{}/32".format(config.get('IPV4_PREFIX'), result['device_id'] >> 8 & 255, result['device_id'] & 255)
         if not result['device_id']:
@@ -231,5 +232,7 @@ while True:
             os.system("wg set wg0 peer {} remove".format(result['client_pub_key']))
             update_ansible(IPV6.split('/')[0],"remove")
             logger.info(f"Removed {IPV6.split('/')[0]} from inventory")
+    else:
+        logger.debug(results)
 
     time.sleep(10)
