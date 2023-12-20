@@ -1,4 +1,28 @@
 #!/bin/bash
+function usage {
+printf "
+Please read the documentation for hidden commands
+
+"
+}
+while [ $# -gt 0 ]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --skip_version_check)
+      skip_version_check=true
+      ;;
+    *)
+      echo "Invalid option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+  shift
+done
+
 ##################################################################################
 # elevate
 ##################################################################################
@@ -11,7 +35,7 @@ SCRIPT_DIR=$( dirname -- "$0"; )
 
 test_upgradeable=$(python3 $SCRIPT_DIR/ncubed/bin/n3.py test upgradeable $SCRIPT_DIR)
 
-if [ $test_upgradeable = 'False' ]; then
+if [ $test_upgradeable = 'False' ] && [ -z "$skip_version_check" ]; then
   printf "\n\nUnable to upgrade to this version directly\n\n"
   exit 0
 fi
