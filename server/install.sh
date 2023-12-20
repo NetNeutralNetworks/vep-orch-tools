@@ -1,11 +1,12 @@
 #!/bin/bash
+set -x
 ##################################################################################
 # elevate
 ##################################################################################
 [ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
 
 SCRIPTPATH=$(dirname $(realpath $0))
-
+echo SCRIPTPATH=$SCRIPTPATH
 
 basedir=/opt/ncubed
 mkdir -p $basedir
@@ -29,7 +30,7 @@ if [ ! -f $configdir/$networkconfigfile ]; then
 fi
 
 # Install services
-for f in services/*; do
+for f in $basedir/services/*; do
     if [ -d "$f" ]; then
         # install services
         chmod +x $f/install
