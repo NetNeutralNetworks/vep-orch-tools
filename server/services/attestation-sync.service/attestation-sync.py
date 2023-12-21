@@ -213,6 +213,7 @@ while True:
         'ipv6_supernet': config.get('IPV6_SUPERNET','fd71:ffff::/64')
     }
     
+<<<<<<< HEAD
     command = f'''ip netns exec UNTRUST curl -s \
                     -d \'{json.dumps(data)}\' \
                     -H "Content-Type: application/json" \
@@ -223,6 +224,8 @@ while True:
 
     results = json.loads(r)
     
+=======
+>>>>>>> 21d15c23ff75ca93a7ed2eb46c560f3f192e96c4
     if 'results' in results:
         for result in results['results']:
             IPV6 = "{}{}/128".format(config.get('IPV6_SUPERNET').split('/')[0], result['device_id'])
