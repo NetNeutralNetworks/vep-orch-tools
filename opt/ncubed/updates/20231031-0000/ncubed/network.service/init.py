@@ -355,6 +355,7 @@ def if_up(DOMAIN, EXTERNAL_NIC, NETNS, BRIDGE_E):
 def if_down(DOMAIN, NETNS, BRIDGE_E):
     logger.info(f'External interface is down, unconfiguring {BRIDGE_E}')
     subprocess.run(f'''
+        ip netns exec {NETNS} ip route flush dev {BRIDGE_E}
         ip netns exec {NETNS} ip addr flush dev {BRIDGE_E}
         ip netns exec {NETNS} ip link set dev {BRIDGE_E} down
         ip netns exec {NETNS} ip link set dev _{DOMAIN}_nat_e down
