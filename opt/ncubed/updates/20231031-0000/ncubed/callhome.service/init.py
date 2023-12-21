@@ -143,11 +143,24 @@ def create_wireguard_interface(NETNS, config, device_id, id):
     logger.debug(f"trying to establish new tunnel on {NETNS}")
     WG_INTF_NAME = f"wg_{id}_{NETNS}"
 
-    server = f"{config['orchestration_server']}:51820"
-    logger.debug(f"Setting up connection to: {server}")
+    
+    logger.debug(f"Setting up connection to: {config['orchestration_server']}")
     # IPv4 is still being used for libre monitoring. This should not be used for anyhting else
     #         listen-port 51821 \
     ipv6_network = str(ipaddress.ip_network(config['ipv6_supernet']).network_address)
+    try:
+        ipaddress.ip_address(config['orchestration_server'])
+        orch_ip = config['orchestration_server']
+    except ValueError:
+        # server is not an IP address
+        resolve_text = subprocess.call(f"ip netns exec ns_WAN0 {NETNS} {config['orchestration_server']}", shell=True, capture_output=True, text=True).stdout
+        try:
+            ipaddress.ip_address(resolve_text.split(" ")[-1])
+            orch_ip = resolve_text.split(" ")[-1]
+        except:
+            logger.debug(f"Could not resolve Orch server: {config['orchestration_server']}")
+
+    server = f"{orch_ip}:51820"
     subprocess.call(f'''
         ip netns exec {NETNS} ip link add dev {WG_INTF_NAME} type wireguard
         ip netns exec {NETNS} ip link set {WG_INTF_NAME} netns 1
