@@ -328,7 +328,8 @@ def get_dhcp_dns_servers(domain):
     nameservers = []
     for lease in get_dhcp_leases():
         if domain in lease:
-            nameservers += [str(ipaddress.ip_address(ip)) for ip in re.findall('domain-name-servers (.*);',lease)]
+            dns_as_string = [ip.split(',') for ip in re.findall('domain-name-servers (.*);',lease)]
+            nameservers += [str(ipaddress.ip_address(ip)) for ip in dns_as_string[0]]
     return nameservers
 
 def get_dhcp_ip_leases(domain):

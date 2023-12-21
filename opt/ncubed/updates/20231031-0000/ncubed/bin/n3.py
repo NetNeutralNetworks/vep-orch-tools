@@ -220,13 +220,13 @@ class attestation(N3cli):
         if '://' in args:
             print(f'{RED}Specify server without protocol: <www.example.org>{COLOR_RESET}')
             return
-        with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'r') as f:
-            try:
+        try:
+            with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'r') as f:
                 attestation_config_old = yaml.load(f, Loader=yaml.FullLoader)
-            except:
+        except:
                 attestation_config_old = {}
-            attestation_config = dict(attestation_config_old)
-            attestation_config['attestation_server'] = args
+        attestation_config = dict(attestation_config_old)
+        attestation_config['attestation_server'] = args
         with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'w') as f:
             yaml.dump(attestation_config, f)
         if 'NOT' in self.do_status(args=''):
