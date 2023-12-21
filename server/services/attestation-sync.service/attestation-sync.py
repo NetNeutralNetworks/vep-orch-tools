@@ -216,7 +216,7 @@ while True:
     command = f'''ip netns exec UNTRUST curl -s \
                     -d \'{json.dumps(data)}\' \
                     -H "Content-Type: application/json" \
-                    -X POST {config.get("DAS_SERVER")}api/v1/serverapi/getclients \
+                    -X POST {config.get("DAS_SERVER")}/api/v1/serverapi/getclients \
                 '''
     
     r = subprocess.run(command, stdout=subprocess.PIPE, shell=True).stdout.decode()
