@@ -1,7 +1,7 @@
 #!/bin/python3
 import subprocess
 from typing import Any
-import yaml, json
+import yaml, json, os
 import cmd
 import sys
 import glob
@@ -11,6 +11,12 @@ RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 COLOR_RESET = "\033[0m\n"
+
+LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
+GLOBAL_CONFIG_FOLDER = "/opt/ncubed/config/global"
+
+STATUS_FILE = '/opt/ncubed/status.json'
+
 
 class N3cli(cmd.Cmd):
     def default(self, line: str) -> None:
@@ -157,7 +163,7 @@ class orchestration(N3cli):
             except KeyboardInterrupt:
                 return False
         else:
-            with open('/opt/ncubed/status.json','r') as f:
+            with open(STATUS_FILE,'r') as f:
                 data = json.load(f)
             conn_status = "Connection status:\n"
             if data['orch_status'] == 'FULL':
@@ -177,6 +183,28 @@ class orchestration(N3cli):
             for namespace in data['active_namespaces']:
                 ns += namespace + "\n"
             print (f"{conn_status}\n{orchestration}\n{ns}")
+
+   
+        
+        
+class attestation(N3cli):
+    prompt = "ncubed attestation >>> "
+
+    def do_EOF(self, args):
+        '''Use Ctrl+D to go back to n3 base shell'''
+        print('')
+        cli().cmdloop()
+  
+    def do_info(self, args):
+        '''Shows the current attestation info (host)'''
+        if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
+            with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
+                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                print(f"Attestation server: {attestation_config.get('attestation_server')}")
+        else:
+            with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
+                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                print(f"No local attestation server is set. Global server is: {attestation_config.get('attestation_server')}")
         
     def do_refresh(self, args):
         '''Does a new callhome to the attestation server and replaces the current orch_info file if the response is correct'''
@@ -184,7 +212,54 @@ class orchestration(N3cli):
                 sudo python3 /opt/ncubed/callhome.service/force_attestation.py
                 ''', shell=True)
         
-    
+    def do_set_server(self, args):
+        '''Sets the new attestation serever on this device'''
+        if len(args.split(' ')) != 1:
+            print(f'{RED}1 argument allowed: <SERVER>{COLOR_RESET}')
+            return
+        if '://' in args:
+            print(f'{RED}Specify server without protocol: <www.example.org>{COLOR_RESET}')
+            return
+        with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'r') as f:
+            try:
+                attestation_config_old = yaml.load(f, Loader=yaml.FullLoader)
+            except:
+                attestation_config_old = {}
+            attestation_config = dict(attestation_config_old)
+            attestation_config['attestation_server'] = args
+        with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'w') as f:
+            yaml.dump(attestation_config, f)
+        if 'NOT' in self.do_status(args=''):
+            with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'w') as f:
+                if attestation_config_old == {}:
+                    os.remove(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml')
+                else:
+                    with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'w') as f:
+                        yaml.dump(attestation_config_old, f)
+                print(f'{RED}New server is not reachable{COLOR_RESET}')
+                return
+        print(f'{GREEN}Config written{COLOR_RESET}')
+        
+    def do_status(self, args):
+        '''does a check to see if the attestation server is alive'''
+        with open(STATUS_FILE, 'r') as file:
+            status = json.load(file)
+        if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
+            with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
+                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_server = attestation_config.get('attestation_server')
+        else:
+            with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
+                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_server = attestation_config.get('attestation_server')
+        for netns in status.get('active_namespaces'):
+            attestation_result = subprocess.run(f"sudo ip netns exec {netns} curl -I 'https://{attestation_server}' 2>/dev/null | head -n 1", shell=True, capture_output=True, text=True).stdout
+            print(attestation_result)
+            if '200' in attestation_result:
+                print(f"{GREEN}Attestation server is reachable!{COLOR_RESET}")
+                return "Attestation server is reachable!"
+        print(f"{RED}Attestation server is NOT reachable!{COLOR_RESET}")
+        return "Attestation server is NOT reachable!"
     
 class cli(N3cli):
     """Accepts commands via the normal interactive prompt or on the command line."""
@@ -222,6 +297,19 @@ class cli(N3cli):
         if len(results) == 1:
             return [results[0] + " "]
         return [ t for t in orchestration().completenames('') if text in t]
+    
+    def do_attestation(self, args):
+        '''Enter attestation CLI to display/configure attestation servers'''
+        if len(args) > 1:
+            attestation().onecmd(args)
+        else:
+            attestation().cmdloop()
+
+    def complete_attestation(self, text, line, start_index, end_index):
+        results = [ t for t in attestation().completenames('') if text in t]
+        if len(results) == 1:
+            return [results[0] + " "]
+        return [ t for t in attestation().completenames('') if text in t]
     
     def do_debug(self, args):
         '''Enter debug CLI to debug connections'''

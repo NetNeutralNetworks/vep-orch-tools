@@ -13,9 +13,8 @@ GW_TEST_IP="8.8.8.8"
 LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
 GLOBAL_CONFIG_FOLDER = "/opt/ncubed/config/global"
 ORCHESTRATION_V4_PREFIX = "100.71"
-ORCHESTRATION_V6_PREFIX = "fd71::"
 
-ATTESTATION_SERVER="attestation.d0001.ncubed.io"
+# ATTESTATION_SERVER="attestation.d0001.ncubed.io"
 #ATTESTATION_SERVER="attestation.infra.ncubed.io"
 WG_CONFIG_FILE="/etc/wireguard/wg0.conf"
 WG_PRIVATE_KEY_FILE="/etc/wireguard/netcube01.private.key"
@@ -24,6 +23,16 @@ WG_PUBLIC_KEY_FILE="/etc/wireguard/netcube01.public.key"
 STATUS_FILE = "/opt/ncubed/status.json"
 
 ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
+
+def get_attestation_config():
+    if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
+        with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
+            attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+            return attestation_config.get('attestation_server')
+    else:
+        with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
+            attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+            return attestation_config.get('attestation_server')
 
 
 logger = logging.getLogger("ncubed callhome")
@@ -108,7 +117,7 @@ def callhome(net_namespace):
 
         logger.debug(f"Calling attestation server from: {net_namespace}")
         attestation_result = subprocess.run(f"ip netns exec {net_namespace} curl \
-                                            -X POST 'https://{ATTESTATION_SERVER}/api/v1/clientapi/register' \
+                                            -X POST 'https://{get_attestation_config()}/api/v1/clientapi/register' \
                                             -H 'Content-Type: application/json' \
                                             -d '{body}'", shell=True, capture_output=True, text=True).stdout
         logger.debug(f"Attestion response: {attestation_result}")
@@ -232,7 +241,7 @@ def connect_to_orch(name):
 
 def refresh_attestation():
     with open(STATUS_FILE, 'r') as file:
-                status = json.load(file)
+        status = json.load(file)
     for active_uplink in status.get('active_namespaces'):
         attestation_server_result = callhome(active_uplink)
         if attestation_server_result:
