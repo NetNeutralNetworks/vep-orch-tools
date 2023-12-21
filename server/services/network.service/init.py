@@ -1,5 +1,5 @@
 #!/bin/python3
-import sys, json, subprocess, multiprocessing, yaml, time
+import os, sys, json, subprocess, multiprocessing, yaml, time
 import systemd.daemon
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
@@ -67,6 +67,27 @@ def monitor_interface(NETNS, intf):
                 logger.info(f"interface {intf.get('name')} in {NETNS} went down")
 
 
+def set_dns_servers(NETNS,dns_servers):
+    resolve_file_path = f"/etc/netns/{NETNS}"
+    resolve_file = f"{resolve_file_path}/resolv.conf"
+
+    if not os.path.exists(resolve_file_path):
+        os.makedirs(resolve_file_path)
+
+    if os.path.exists(resolve_file):
+        with open(resolve_file, 'r') as f:
+            configured_dns_servers = f.read()
+    else:
+        configured_dns_servers=''
+
+    dns_servers = ''.join([f"nameserver {s}\n" for s in dns_servers])
+
+    if dns_servers != configured_dns_servers:
+        with open(resolve_file, 'w') as f:
+            f.write(dns_servers)
+            logger.info(f'Configured dns servers in netnamespace {NETNS}')
+
+
 #netnamespaces:
 #- name: 'UNTRUST'
 #  interfaces:
@@ -90,6 +111,7 @@ if __name__ == '__main__':
                 for intf in netns.get("interfaces"):
                     INTF=intf.get('name')
                     subprocess.run(f"ip link set {INTF} netns {NETNS}", shell=True)
+                    set_dns_servers(NETNS,intf.get('nameservers',[]).get('addresses',[]))
 
                     process = multiprocessing.Process(name=f"Monitor {INTF} in {NETNS}", target=monitor_interface, args=(NETNS, intf))
                     process.start()
