@@ -99,6 +99,10 @@ def get_local_system_config():
     
 def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
     logger.info(f"start dnsmasq in namespace {DOMAIN}")
+    resolve_file = f'/etc/netns/{NETNS}/resolv.conf'
+    
+    if not os.path.exists(resolve_file):
+        set_dns_servers(NETNS,[]) 
     
     subprocess.run(f'''
     ip netns exec {NETNS} /usr/sbin/dnsmasq --pid-file=/run/dnsmasq_ns_{DOMAIN}.pid \
@@ -109,7 +113,7 @@ def start_dnsmasq(DOMAIN, NETNS, VETH_NAT, TRANSIT_PREFIX):
                                             --dhcp-no-override \
                                             --dhcp-authoritative \
                                             --dhcp-lease-max=20 \
-                                            --resolv-file=/etc/netns/{NETNS}/resolv.conf \
+                                            --resolv-file={resolve_file} \
                                             --log-facility=/var/log/ncubed-dnsmasq.log
     ''', shell=True)
     logger.info(f"Finished wanport cluster configuration")
@@ -303,7 +307,7 @@ def set_dns_servers(NETNS,dns_servers):
         with open(resolve_file, 'r') as f:
             configured_dns_servers = f.read()
     else:
-        configured_dns_servers=''
+        configured_dns_servers=None
 
     dns_servers = ''.join([f"nameserver {s}\n" for s in dns_servers])
 
@@ -324,7 +328,8 @@ def get_dhcp_dns_servers(domain):
     nameservers = []
     for lease in get_dhcp_leases():
         if domain in lease:
-            nameservers += [str(ipaddress.ip_address(ip)) for ip in re.findall('domain-name-servers (.*);',lease)]
+            dns_as_string = [ip.split(',') for ip in re.findall('domain-name-servers (.*);',lease)]
+            nameservers += [str(ipaddress.ip_address(ip)) for ip in dns_as_string[0]]
     return nameservers
 
 def get_dhcp_ip_leases(domain):
