@@ -153,12 +153,13 @@ def create_wireguard_interface(NETNS, config, device_id, id):
         orch_ip = config['orchestration_server']
     except ValueError:
         # server is not an IP address
-        resolve_text = subprocess.call(f"ip netns exec ns_WAN0 {NETNS} {config['orchestration_server']}", shell=True, capture_output=True, text=True).stdout
+        resolve_text = subprocess.run(f"ip netns exec {NETNS} host {config['orchestration_server']}", shell=True, capture_output=True, text=True).stdout
         try:
-            ipaddress.ip_address(resolve_text.split(" ")[-1])
-            orch_ip = resolve_text.split(" ")[-1]
+            ipaddress.ip_address(resolve_text.split(" ")[-1].strip())
+            orch_ip = resolve_text.split(" ")[-1].strip()
         except:
             logger.debug(f"Could not resolve Orch server: {config['orchestration_server']}")
+            return False
 
     server = f"{orch_ip}:51820"
     subprocess.call(f'''
