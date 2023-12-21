@@ -27,12 +27,8 @@
       ansible.builtin.debug:
         var: current_bios_verion.stdout
 
-
-    - name: checking bios version, will exit play if allready on right version.
-      meta: end_play
-      when: current_bios_verion.stdout == target_bios_version
-
-    - name: upgrade steps
+    - name: upgrade if current version is not target version
+      when: current_bios_verion.stdout != target_bios_version
       block:
       - name: backup lsb-release
         ansible.builtin.command: cp /etc/lsb-release /etc/lsb-release.bck
