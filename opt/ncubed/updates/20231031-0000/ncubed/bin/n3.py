@@ -14,10 +14,11 @@ import sys
 import glob
 from os.path import exists
 
+BOLD = "\033[1m"
 RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
-COLOR_RESET = "\033[0m\n"
+COLOR_RESET = "\033[0m"
 
 LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
 GLOBAL_CONFIG_FOLDER = "/opt/ncubed/config/global"
@@ -142,6 +143,14 @@ class show(N3cli):
             subprocess.run(f'''
                 sudo ip -n {NETNS} -br -c addr
                 ''', shell=True)
+            
+    def do_bonds(self, args):
+        bonds = subprocess.run(f"ls /proc/net/bonding", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()
+        for bond in bonds:
+            command = f'cat /proc/net/bonding/{bond}'
+            print(f"\n{50*'#'} {command} {50*'#'}")
+            out = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
+            print(out.replace('\n',f'\n{BOLD}').replace(': ',f': {COLOR_RESET}').replace('down',f'{RED}down{COLOR_RESET}').replace('UP',f'{GREEN}UP{COLOR_RESET}'))
     
     
 class orchestration(N3cli):
@@ -222,10 +231,10 @@ class attestation(N3cli):
     def do_set_server(self, args):
         '''Sets the new attestation serever on this device'''
         if len(args.split(' ')) != 1:
-            print(f'{RED}1 argument allowed: <SERVER>{COLOR_RESET}')
+            print(f'{RED}1 argument allowed: <SERVER>{COLOR_RESET}\n')
             return
         if '://' in args:
-            print(f'{RED}Specify server without protocol: <www.example.org>{COLOR_RESET}')
+            print(f'{RED}Specify server without protocol: <www.example.org>{COLOR_RESET}\n')
             return
         try:
             with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'r') as f:
@@ -243,9 +252,9 @@ class attestation(N3cli):
                 else:
                     with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'w') as f:
                         yaml.dump(attestation_config_old, f)
-                print(f'{RED}New server is not reachable{COLOR_RESET}')
+                print(f'{RED}New server is not reachable{COLOR_RESET}\n')
                 return
-        print(f'{GREEN}Config written{COLOR_RESET}')
+        print(f'{GREEN}Config written{COLOR_RESET}\n')
         
     def do_status(self, args):
         '''does a check to see if the attestation server is alive'''
@@ -263,9 +272,9 @@ class attestation(N3cli):
             attestation_result = subprocess.run(f"sudo ip netns exec {netns} curl -I 'https://{attestation_server}' 2>/dev/null | head -n 1", shell=True, capture_output=True, text=True).stdout
             print(attestation_result)
             if '200' in attestation_result:
-                print(f"{GREEN}Attestation server is reachable!{COLOR_RESET}")
+                print(f"{GREEN}Attestation server is reachable!{COLOR_RESET}\n")
                 return "Attestation server is reachable!"
-        print(f"{RED}Attestation server is NOT reachable!{COLOR_RESET}")
+        print(f"{RED}Attestation server is NOT reachable!{COLOR_RESET}\n")
         return "Attestation server is NOT reachable!"
     
 class cli(N3cli):
