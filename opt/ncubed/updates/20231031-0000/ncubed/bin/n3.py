@@ -148,10 +148,13 @@ class show(N3cli):
         bonds = subprocess.run(f"ls /proc/net/bonding", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()
         for bond in bonds:
             command = f'cat /proc/net/bonding/{bond}'
-            print(f"\n{50*'#'} {command} {50*'#'}")
+            print(f"\n{BOLD}{50*'#'} {command} {50*'#'}{COLOR_RESET}")
             out = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode()
-            print(out.replace('\n',f'\n{BOLD}').replace(': ',f': {COLOR_RESET}').replace('down',f'{RED}down{COLOR_RESET}').replace('UP',f'{GREEN}UP{COLOR_RESET}'))
-    
+            print(out.replace('\n',f'\n{COLOR_RESET}{BOLD}')
+                    .replace('Interface: ',f'Interface: {YELLOW}')
+                    .replace(': ',f': {COLOR_RESET}')
+                    .replace('down',f'{RED}down{COLOR_RESET}')
+                    .replace('UP',f'{GREEN}UP{COLOR_RESET}'))
     
 class orchestration(N3cli):
     prompt = "ncubed orchestration >>> "
