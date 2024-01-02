@@ -1,7 +1,14 @@
 #!/bin/python3
+import signal, os
+def handler(signum, frame):
+    os.system('clear')
+    exit()
+ 
+signal.signal(signal.SIGINT, handler)
+
 import subprocess
 from typing import Any
-import yaml, json, os
+import yaml, json
 import cmd
 import sys
 import glob
