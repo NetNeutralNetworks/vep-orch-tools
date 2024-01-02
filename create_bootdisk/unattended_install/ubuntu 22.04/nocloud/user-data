@@ -173,4 +173,4 @@ autoinstall:
       - efibootmgr -O
     runcmd:
       - latest=$(ls -d /opt/ncubed/updates/*/ | tail -n1)
-      - /bin/bash -c $latest/install.sh
+      - /bin/bash -c $latest/install.sh --skip_version_check
