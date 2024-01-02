@@ -56,37 +56,57 @@ def create_interface(NETNS, INTF, TYPE):
         else:
             logger.info(f"Found existing {INTF}")
 
-def create_trunkports(BONDNAME, INTERFACES, BRIDGENAME):
+def create_trunkport(BONDNAME, INTERFACES, BRIDGENAME, BONDTYPE):
+    # delete bond if type has changed
+    if os.path.exists(f'/proc/net/bonding/{BONDNAME}'):
+        if BONDTYPE not in subprocess.run(f'cat /proc/net/bonding/{BONDNAME} | grep "Bonding Mode: "',shell=True, stdout=subprocess.PIPE).stdout.decode():
+            subprocess.run(f'ip link del {BONDNAME}',shell=True)
+    
+    if not subprocess.run(f'ip -j link show dev {BRIDGENAME}',shell=True, stdout=subprocess.PIPE).stdout.decode():
+        create_interface('ROOT', BRIDGENAME, 'bridge')
 
-    for INTF in [{'netns':'ROOT','name':BONDNAME,'type':'bond'},
-                 {'netns':'ROOT','name':BRIDGENAME,'type':'bridge'}]:
-        create_interface(INTF.get('netns'),INTF.get('name'),INTF.get('type'))
+    if not os.path.exists(f'/proc/net/bonding/{BONDNAME}'):
+        create_interface('ROOT', BONDNAME, 'bond')
+        if BONDTYPE in [0, 'balance-rr']:      # Requires static Etherchannel enabled (not LACP-negotiated) 
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 0',shell=True)
+        elif BONDTYPE in [1, 'active-backup']: # Requires autonomous ports
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 1 miimon 100',shell=True)
+        elif BONDTYPE in [2, 'balance-xor']:   # Requires static Etherchannel enabled (not LACP-negotiated)
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 2',shell=True)
+        elif BONDTYPE in [3, 'broadcast']:     # Requires static Etherchannel enabled (not LACP-negotiated)
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 3',shell=True)
+        elif BONDTYPE in [4, '802.3ad']:       # Requires LACP-negotiated Etherchannel enabled
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 4 lacp_rate fast',shell=True)
+        elif BONDTYPE in [5, 'balance-tlb']:   # Requires autonomous ports
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 5',shell=True)
+        elif BONDTYPE in [6, 'balance-alb']:   # Requires autonomous ports
+            subprocess.run(f'ip link set {BONDNAME} type bond mode 6',shell=True)
 
     subprocess.run(f'''
-    ip link set {BONDNAME} type bond miimon 100 mode active-backup
-    ip link set dev {BRIDGENAME} type bridge vlan_filtering 1 stp_state 0 priority 65535
-    ip link set dev {BONDNAME} master {BRIDGENAME}
-    bridge vlan add dev {BONDNAME} vid 1-4094
-    bridge vlan add dev {BONDNAME} vid 1 pvid untagged
-    bridge vlan add dev {BRIDGENAME} vid 1-4094 self
-    bridge vlan add dev {BRIDGENAME} vid 1 pvid self untagged
-    ''', shell=True)
+        ip link set dev {BRIDGENAME} type bridge vlan_filtering 1 stp_state 0 priority 65535
+        ip link set dev {BONDNAME} master {BRIDGENAME}
+        bridge vlan add dev {BONDNAME} vid 1-4094
+        bridge vlan add dev {BONDNAME} vid 1 pvid untagged
+        bridge vlan add dev {BRIDGENAME} vid 1-4094 self
+        bridge vlan add dev {BRIDGENAME} vid 1 pvid self untagged
+        ''', shell=True)
 
-    for INTF in INTERFACES:
+    for i, INTF in enumerate(INTERFACES):
         interface_config = json.loads(subprocess.run(f'''ip -j link show {INTF}''',stdout=subprocess.PIPE, shell=True).stdout.decode())
         if interface_config[0].get('master', '') == BONDNAME:
             logger.info(f"{INTF} already added to bond {BONDNAME}")
             continue
         logger.info(f"Adding {INTF} to bond {BONDNAME}")
         subprocess.run(f'''
-        ip link set {INTF} down
-        ip link set {INTF} master {BONDNAME}
-        ''', shell=True)
+            ip link set {INTF} down
+            ip link set {INTF} master {BONDNAME}
+            ''', shell=True)
+        
+        # if BONDTYPE in [1, 'active-backup'] and i == 0:
+        #     subprocess.run(f'ip link set dev {BONDNAME} type bond primary {INTF}',shell=True)
 
     for INTF in INTERFACES + [BONDNAME, BRIDGENAME]:
-        subprocess.run(f'''
-        ip link set dev {INTF} up
-        ''', shell=True)
+        subprocess.run(f'ip link set dev {INTF} up', shell=True)
 
 def get_local_system_config():
     # load local list
@@ -535,7 +555,7 @@ if __name__ == '__main__':
 
     if DEV_CONFIG:
         for BOND in DEV_CONFIG[0]['portconfig']['BONDS']:
-            create_trunkports(BOND['name'], BOND['interfaces'], BOND['bridgename'])
+            create_trunkport(BOND['name'], BOND['interfaces'], BOND['bridgename'], BOND.get('type','active-backup'))
 
         create_vlan_bridges()
 

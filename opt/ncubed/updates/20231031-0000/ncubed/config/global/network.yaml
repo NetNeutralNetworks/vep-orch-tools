@@ -10,6 +10,7 @@
       2: 'ens10'
     BONDS:
       - name: bond34
+        type: 802.3ad
         bridgename: br-trunk34
         interfaces: ['ens5', 'ens6']
       - name: bond56
@@ -30,6 +31,7 @@
       2: 'eno8'
     BONDS:
       - name: bond34
+        type: 802.3ad
         bridgename: br-trunk34
         interfaces: ['eno3','eno4']
       - name: bond56
@@ -50,6 +52,7 @@
       2: 'enp182s0f1'
     BONDS:
       - name: bond34
+        type: 802.3ad
         bridgename: br-trunk34
         interfaces: []
       - name: bond56
