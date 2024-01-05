@@ -363,10 +363,10 @@ class cli(N3cli):
                 Press any key to continue
         """)
         print(f"connecting to: {device}")
-        # subprocess.run(f'''
-        #                sudo python3 /opt/ncubed/bin/reset_usb.py CP210x
-        #                sudo screen {device} 115200
-        #                ''', shell=True)
+        subprocess.run(f'''
+                       sudo python3 /opt/ncubed/bin/reset_usb.py CP210x
+                       sudo screen {device} 115200
+                       ''', shell=True)
         
     def complete_connect(self, text, line, start_index, end_index):
         devices = subprocess.run(f"ls /dev/", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()
