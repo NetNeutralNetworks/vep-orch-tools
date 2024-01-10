@@ -77,6 +77,9 @@ chmod +x $ROOTDIR/bin/*
 # add cli to globally available tools
 ln -b $ROOTDIR/bin/n3.py /usr/local/bin/n3
 
+# migrate config files etc. from previous version to the current
+python3 $SCRIPT_DIR/ncubed/migrate.py
+
 # install services
 chmod +x $ROOTDIR/network.service/install
 $ROOTDIR/network.service/install

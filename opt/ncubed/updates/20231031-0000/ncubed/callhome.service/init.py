@@ -64,29 +64,6 @@ def get_existing_wireguard_interfaces():
      wg_interfaces = subprocess.run(f"wg show interfaces", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()
      return wg_interfaces
 
-def check_connection():
-    results = []
-    
-    try:
-        with open(ORCH_INFO_FILE, 'r') as f:
-            attestation = yaml.load(f)
-        for server in attestation['result']['servers']:
-            orch_server = str(ipaddress.ip_network(server['ipv6_supernet']).network_address)
-            if subprocess.run(f"ping {orch_server} -c 3 | grep -q 'bytes from'", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).returncode:
-                logger.debug(f"Orchestration server: {server['orchestration_server']} not reachable")
-
-                results.append(0)
-            else:
-                results.append(1)
-    except:
-        return 0
-    if 0 not in results:
-        set_led('purple')
-        return 1
-    else:
-        set_led('orange')
-        return 0
-
 def check_active_uplinks():
     available_ns = []
     for NETNS in get_existing_netnamespaces():
@@ -280,16 +257,23 @@ if __name__ == '__main__':
             orch_status = status.get('orch_status')
             if orch_status == 'FULL':
                 # Connection to all known orchestration servers are healthy
+                set_led('purple')
                 attempts = 0
                 time.sleep(5)
                 continue
             elif orch_status == 'NO SERVER':
                 # No orch servers are known -> Do a callhome
+                set_led('blue')
+                time.sleep(1)
+                set_led('red')
                 refresh_attestation()
             elif orch_status == 'DISCONNECTED':
+                set_led('green')
+                time.sleep(1)
+                set_led('red')
                 attempts += 1
-                # one hour = 720
-                if attempts > 720:
+                # one hour = 600
+                if attempts > 600:
                     logger.info(f"one hour without connection, checking to see if DAS is updated")
                     copy(ORCH_INFO_FILE, ORCH_INFO_FILE+".backup")
                     if not refresh_attestation():
@@ -307,14 +291,6 @@ if __name__ == '__main__':
                     if server_status == 0:
                         # try and reconnect the server
                         connect_to_orch(server)
-
-            # if not check_connection():
-            #     # Attestation server info is found
-            #     logger.debug("removing possible existing wireguard interfaces")
-            #     for wg_interface in get_existing_wireguard_interfaces():
-            #         logger.debug(f"removing {wg_interface}")
-            #         subprocess.run(f"ip link del {wg_interface}", shell=True)
-            #     setup_wg_tunnels(check_active_uplinks(),attestation_server_result['result']['servers'],attestation_server_result['result']['device_id']) 
 
         except Exception as e:
             set_led('red')
