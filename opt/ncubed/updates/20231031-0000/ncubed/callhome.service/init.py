@@ -285,6 +285,7 @@ if __name__ == '__main__':
                         # try and reconnect the server
                         connect_to_orch(server)
             else:
+                set_led('purple')
                 attempts = 0
                 for server, server_status in status.get('orchestration_servers', {}).items():
                     
