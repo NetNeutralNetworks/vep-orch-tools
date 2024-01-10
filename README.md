@@ -70,9 +70,18 @@ credentials need to be loaded into the environment variables
     export ANSIBLE_PASSWORD=<password>
 To make updating devices easier and automatable Ansible-Playbooks have been created. The default inventory used is located in: /opt/ncubed/ansible/inventories
 
+### Update ncubed software
+ 
+
 ### nc-update_known_hosts.yaml
  This playbook is used to connect to devices and save the SSH fingerprint of the device.
 ### nc-update_opt_ncubed.yaml
  This playbook is used to update the VEP software on known devices. It copies the version specified in the playbook to the device and runes the <update>/install.sh script
+
+### Copy new firmware
+ ansible-playbook -i /opt/ncubed/ansible/inventories/hosts.yaml /home/nc-admin/vep-orch-tools/playbooks/nc-copy_firmware.yaml -l fd71::28
+ ansible-playbook -i /opt/ncubed/ansible/inventories/hosts.yaml /home/nc-admin/vep-orch-tools/playbooks/nc-install_vep_firmware.yaml -l fd71::28
+
+ 
  
 
