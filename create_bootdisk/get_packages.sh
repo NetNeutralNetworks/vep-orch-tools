@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # This script requires apt-dev to be installed
+if [[ -z $1 ]]; then
+    echo "pleae spesify a detination folder, example: ./get_packages.sh unattended_install/ubuntu\ 22.04/local_repo/" 1>&2
+    exit 1
+fi
 
 #[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
 destination_folder=$1
@@ -30,10 +34,15 @@ PACKAGES=(
 )
 options="-o=dir::cache=./ -o=dir::etc::sourcelist=../sources.list"
 sudo apt update $options
-#packages=$(apt-cache depends $options --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends ${PACKAGES[*]} | grep "^\w")
-# download files
-#apt install -y -d --reinstall $options ${packages[*]}
-# do;
+
+printf "
+#####################################
+linux-image-generic
+#####################################
+"
+apt-get download $options $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances $options linux-image-generic | grep "^\w" | sort -u )
+
+
 for package in ${PACKAGES[*]}
 do
     printf "
@@ -41,12 +50,7 @@ do
     $package
     #####################################
     "
-    # get all dependencies for this package
-    # for p in $(apt-cache depends $options --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends $package | grep "^\w" | sort -u);
-    # do
-    #     apt-get download $options $p:amd64
-    apt-get download $options $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances $options $package | grep "^\w" | sort -u)
-    #done
+    apt-get download $options $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances $options $package | grep -vE "^linux-" | grep "^\w" | sort -u )
 done
 
 # create Package file

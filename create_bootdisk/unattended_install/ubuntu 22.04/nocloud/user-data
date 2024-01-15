@@ -60,7 +60,7 @@ autoinstall:
       - id: lvm_partition-0
         name: lvm_lv-var
         volgroup: lvm_volgroup-0
-        size: 10%
+        size: 80%
         wipe: superblock
         preserve: false
         type: lvm_partition
@@ -119,8 +119,22 @@ autoinstall:
     - echo 'deb [ trusted=yes ] file:///cdrom/local_repo ./' > /etc/apt/sources.list
     - apt update
     - apt -y install i2c-tools
-    - /cdrom/ncubed/bin/led cyan
+    - /cdrom/ncubed/bin/led blink green .05 .05 & ledpid=$!
+    ###########################
+    # install disk firmware
+    ###########################
     - /bin/bash -c /cdrom/ncubed/FIRMWARE/Linux_DLMC2b_SFDN004E_20220315/install.sh
+    ###########################
+    # install firmware
+    ###########################
+    - cp /etc/lsb-release /etc/lsb-release.bck
+    - sed -i 's/=20.04\|=22.04/=18.04/g' /etc/lsb-release
+    - if [ $(cat /sys/class/dmi/id/bios_version) != 3.48.0.9-21 ]; then /bin/bash -c yes | /cdrom/ncubed/FIRMWARE/ufw_2.4/vep1400x_ufw_2.4; fi
+    - cp /etc/lsb-release.bck /etc/lsb-release
+    ###########################
+    # end install firmware
+    ###########################
+    - kill $ledpid
     - /cdrom/ncubed/bin/led blue
 
   late-commands:
