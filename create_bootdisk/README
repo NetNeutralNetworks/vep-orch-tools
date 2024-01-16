@@ -1,0 +1,34 @@
+# HOW TO BUILD NETCUBE INSTALL IMAGE
+
+in all examples <os version> translaets to: "ubuntu\ 22.04"
+this is only a refference to the folder in unattended_install
+
+## STEP 1
+download an install medium and put in the same folder as this readme
+example: wget https://releases.ubuntu.com/jammy/ubuntu-22.04.3-live-server-amd64.iso
+
+## STEP 2
+for the led and uefi settings to be manipulated during install, a few libs need to be installed
+these need to be gathered and placed in the appropriate folder
+this is done by running the command: 
+./unattended_install/<os version>/nocloud/deps/download_packages.sh
+
+## STEP 3
+during install it is requireed that internet is not needed and so some packages need to be supplied in a local repository
+this repo is filled by running the following command
+./get_packages.sh unattended_install/<os version>/local_repo/
+
+## STEP 4 OPTIONAL
+when using -C in step 5 images need to be placed in the ./unattended_install/images folder
+these are meant to be qcow2 images that need to be run as vm, this allows for fast deployment on low bandwith links
+
+## STEP 5
+create an image by running the following command (not specifying a target only creates the image file, otherwise the image will be written to that device using dd):
+```
+./create_bootdisk [-t|--target] [-C]
+
+        -t, --target:  /dev/<dev> (target device)
+        -C, --copyimages
+```
+
+When images has been created, the script waits for keyinput before closing mounts and cleaning up, this allows for easy cuomizations and validation
