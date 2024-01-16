@@ -44,13 +44,17 @@ mountfolder2=`pwd`"/part02/"
 #########################################
 # prep disk file
 #########################################
-if [ ${copyimages} ]; then
-	# create 8Gb empty file
-	dd if=/dev/zero of=$file bs=8G seek=1 count=0
-else
-	# create 4Gb empty file
-	dd if=/dev/zero of=$file bs=4G seek=1 count=0
-fi
+# if [ ${copyimages} ]; then
+# 	# create 8Gb empty file
+# 	dd if=/dev/zero of=$file bs=8G seek=1 count=0
+# else
+# 	# create 4Gb empty file
+# 	dd if=/dev/zero of=$file bs=4G seek=1 count=0
+# fi
+truncate -s 8G $file
+# sgdisk -og $file
+# sgdisk -n 0:0:+3500MiB -t 0:ef00 $file
+# sgdisk -n 0:0:0 $file
 
 # mount file to loop device
 device=`losetup -f`

@@ -5,6 +5,14 @@ autoinstall:
 
   network:
     version: 2
+    ethernets: {}
+
+  # enable for testing if cloud-init fails
+  #identity:
+  #   realname: 'Ubuntu User'
+  #   username: ubuntu
+  #   password: '$6$wdAcoXrU039hKYPd$508Qvbe7ObUnxoj15DRCkzC3qO7edjH0VV7BPNRDYK4QR8ofJaEEF2heacn0QgD.f8pO8SNp83XNdWG6tocBM1'
+    # hostname: ubuntu
 
   reporting:
     builtin:
@@ -119,7 +127,7 @@ autoinstall:
     - echo 'deb [ trusted=yes ] file:///cdrom/local_repo ./' > /etc/apt/sources.list
     - apt update
     - apt -y install i2c-tools
-    - /cdrom/ncubed/bin/led blink green .05 .05 & ledpid=$!
+    - /cdrom/ncubed/bin/led blink cyan .08 .03 &
     ###########################
     # install disk firmware
     ###########################
@@ -134,7 +142,7 @@ autoinstall:
     ###########################
     # end install firmware
     ###########################
-    - kill $ledpid
+    - pgrep -f '/bin/led' | sed '$ d' | xargs -r kill
     - /cdrom/ncubed/bin/led blue
 
   late-commands:
@@ -169,22 +177,23 @@ autoinstall:
 
   # cloud-init
   user-data:
+    hostname: netcube01
+    network:
+      config: disabled
     timezone: Europe/Amsterdam
     locale: en_US.UTF-8
     keyboard:
       layout: us
-    hostname: netcube01
     package_update: false
     package_upgrade: false
-    ssh_pwauth: True
+    ssh_pwauth: true
     users:
       - name: nc-admin
         shell: /bin/bash
-        sudo: ['ALL=(ALL) NOPASSWD:ALL']
-        passwd: $6$e8jD6FuUr$zvHJXNAsAJJKBOqnqrjQ/NnwrZRO28uV/DsEWZOckyFQc4sfb3WpPbEI4oCt9MPCC4Ge6aQ6yiv7/6kpNUb7o0
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        passwd: '$6$MIv5OJRmcCkinJ3G$lEA/I6GSObSKLpcRtZaaHq6HxApwkke4IdaMlMuWoRt8/iRrvkA3hU7sL0PeA7eLG6zCFfyMluh97LK3qNrMA.'
         lock_passwd: false
     bootcmd:
       - efibootmgr -O
     runcmd:
-      - latest=$(ls -d /opt/ncubed/updates/*/ | tail -n1)
-      - /bin/bash -c $latest/install.sh --skip_version_check
+      - /bin/bash $(ls -d /opt/ncubed/updates/* | tail -n1)/install.sh --skip_version_check 2>/dev/null
