@@ -7,7 +7,7 @@ import libvirt
 import shutil
 import define_vm
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 
 ROOT="/opt/ncubed"
 VM="ION"
