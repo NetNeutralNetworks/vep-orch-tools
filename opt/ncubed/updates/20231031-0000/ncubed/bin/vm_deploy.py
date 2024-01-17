@@ -1,4 +1,6 @@
 #!/bin/python3
+import os
+from glob import glob
 import yaml
 import subprocess
 import libvirt
@@ -7,18 +9,32 @@ import define_vm
 
 from argparse import ArgumentParser
 
+ROOT="/opt/ncubed"
+VM="ION"
+IMAGEPATH=f"{ROOT}/images"
+
+def file_name(file):
+    if os.path.isfile(file):
+        return file
+    else:
+        raise ArgumentTypeError(f"""readable_file:{file} is not a valid file
+examples:
+{glob(IMAGEPATH+'/*')}
+""")
+
 parser = ArgumentParser(epilog="""
 Deploy ION
 """)
-parser.add_argument("CPU")
-parser.add_argument("MEM")
+parser.add_argument('-c',"--vcpus", required=True, type=int, help="specify number vcpu's, integers only")
+parser.add_argument('-m',"--memory", required=True, type=int, help="specify memory in gigabytes, integers only")
+parser.add_argument('-f',"--imagefile", required=True, type=file_name, help="specify absolute filename")
+
 args = parser.parse_args()
 
-ROOT="/opt/ncubed"
-VM="ION"
-IMAGE=f"{ROOT}/images/3102v-5.5.1-b7-kvm.qcow2"
-CPU=args.CPU
-MEM=args.MEM
+CPU=args.vcpus
+MEM=args.memory
+IMAGE=args.imagefile
+
 
 def get_config():
     with open(f"{ROOT}/config/local/network.yaml") as f:
