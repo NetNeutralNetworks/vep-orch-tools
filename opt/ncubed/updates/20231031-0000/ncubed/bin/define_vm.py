@@ -65,7 +65,7 @@ def render_xml(VMNAME='ION', CPU='8', MEM='8'):
         <interface type='bridge'>
           <target dev='{VMNAME[:6]}_{I}_{BRIDGE.replace('br-','').replace('AN','').replace('trunk','TRK').replace('_i','')[:6]}'/>
           <source bridge='{BRIDGE}'/>
-          <model type='e1000'/>
+          <model type='virtio'/>
           <link state='up'/>
         </interface>'''
 
