@@ -1,0 +1,14 @@
+---
+br-trunk34:
+  reserved: 
+  - name: WAN circuits
+    range: 100-1699
+  vlans:
+  - name: HA1
+    vid: 4051
+  - name: HA2
+    vid: 4052
+  - name: HA3
+    vid: 4053
+br-trunk56:
+  vlans: []
