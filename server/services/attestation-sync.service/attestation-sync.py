@@ -54,8 +54,16 @@ def update_ansible(HOST, ACTION, meta_data = {}):
         logger = logging.getLogger("ncubed attestation sync daemon")
         logger.info("Ansible inventory file does not exists, creating new one")
         Path(_inventory_directory).mkdir(parents=True, exist_ok=True)
-        with open(INVENTORY_FILE, 'x'):
-            pass
+        with open(INVENTORY_FILE, 'w') as f:
+            yaml.dump({'all': None, 
+             'children': {'BRANCH': None, 
+                          'hosts': None, 
+                          'DATACENTER': None}, 
+             'hosts': None, 
+             'vars': {'ansible_password': '{{ lookup("env", "ANSIBLE_PASSWORD") }}', 
+                      'ansible_user': '{{ lookup("env", "ANSIBLE_USER") }}'
+                      }
+             }, f)
 
     try:
         with open(INVENTORY_FILE) as f:
