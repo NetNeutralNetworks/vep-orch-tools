@@ -1,6 +1,6 @@
 #!/bin/sh -f
 
-PLACE=".1.3.6.1.4.1.61192.0.1"   # ncubed edge platform
+PLACE=".1.3.6.1.4.1.61192"       # ncubed OID
 REQ="$2"                         # Requested OID
 
 # .0.x opbjectid's , not used
