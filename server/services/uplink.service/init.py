@@ -1,0 +1,121 @@
+#!/bin/python3
+import os, sys, json, subprocess, multiprocessing, yaml, time
+import systemd.daemon
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+import logging
+#from systemd.journal import JournalHandler
+
+logger = logging.getLogger("ncubed network daemon")
+logger.setLevel(level=logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s(File:%(name)s, Line:%(lineno)d, %(funcName)s) - %(levelname)s - %(process)s: %(message)s',
+                                datefmt="%m/%d/%Y %H:%M:%S %p")
+rothandler = RotatingFileHandler('/var/log/ncubed.networkd.log', maxBytes=100000, backupCount=5)
+rothandler.setFormatter(formatter)
+logger.addHandler(rothandler)
+
+#journald_handler = JournalHandler()
+#journald_handler.setFormatter(formatter)
+#logger.addHandler(journald_handler)
+
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
+
+configfolder = Path("/etc/ncubed/config")
+configfolder.mkdir(exist_ok=True)
+configfile = configfolder.joinpath("network.yaml")
+
+# get config
+def get_config():
+    with open(configfile, 'r') as f:
+        return yaml.safe_load(f)
+
+def get_netns():
+    return json.loads(subprocess.run(f'''ip -j netns''',stdout=subprocess.PIPE, shell=True).stdout.decode())
+
+def monitor_interface(NETNS, intf):
+    with subprocess.Popen(f"ip -o -n {NETNS} monitor link", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+        for line in p.stdout:
+            config = get_config()
+            if "UP,LOWER_UP" in line:
+                logger.info(f"interface {intf.get('name')} in {NETNS} went up")
+
+                
+                logger.info(f"flushing ip info for {intf.get('name')} in {NETNS}")
+                subprocess.run(f'''
+                ip -n {NETNS} addr flush dev {intf.get("name")}
+                ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+                logger.info(f"flushing route table in {NETNS}")
+                subprocess.run(f'''
+                    ip -n {NETNS} route flush table main
+                    ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+                logger.info(f"adding ip address {intf.get('ip')} to {intf.get('name')}")
+                subprocess.run(f'''
+                ip -n {NETNS} addr add {intf.get("ip")} dev {intf.get("name")}
+                ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+                for route in intf.get("routes"):
+                    logger.info(f"adding route to {route.get('to')} via {route.get('via')}")
+                    subprocess.run(f'''
+                    ip -n {NETNS} route add {route.get("to")} via {route.get("via")}
+                    ''', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+                
+            else:
+                logger.info(f"interface {intf.get('name')} in {NETNS} went down")
+
+
+def set_dns_servers(NETNS,dns_servers):
+    resolve_file_path = f"/etc/netns/{NETNS}"
+    resolve_file = f"{resolve_file_path}/resolv.conf"
+
+    if not os.path.exists(resolve_file_path):
+        os.makedirs(resolve_file_path)
+
+    if os.path.exists(resolve_file):
+        with open(resolve_file, 'r') as f:
+            configured_dns_servers = f.read()
+    else:
+        configured_dns_servers=''
+
+    dns_servers = ''.join([f"nameserver {s}\n" for s in dns_servers])
+
+    if dns_servers != configured_dns_servers:
+        with open(resolve_file, 'w') as f:
+            f.write(dns_servers)
+            logger.info(f'Configured dns servers in netnamespace {NETNS}')
+
+
+#netnamespaces:
+#- name: 'UNTRUST'
+#  interfaces:
+#  - name: 'ens6'
+#    ip: '192.168.15.201/20'
+#    routes:
+#      - to: '0.0.0.0/0'
+#        via: '192.168.0.1'
+
+
+if __name__ == '__main__':
+    config = get_config()
+    while True:
+        try:
+            subprocess.run(f"""
+                ip netns exec UNTRUST ip link add xfrm_uplink01 type xfrm dev enp1s0 if_id 1
+                ip netns exec UNTRUST ip link set netns 1 dev xfrm_uplink01
+                ip link set dev xfrm_uplink01 up
+                ip route add 0.0.0.0/0 dev xfrm_uplink01
+                ip6tables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+                ip netns exec UNTRUST ipsec start
+            """, shell=True)
+
+            # notify systemd daemon is ready
+            systemd.daemon.notify('READY=1')
+            break
+        except:
+            # Keep trying untill no errors occur
+            time.sleep(1)
+            pass
+

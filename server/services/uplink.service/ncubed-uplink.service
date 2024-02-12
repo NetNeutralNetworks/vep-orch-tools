@@ -1,0 +1,16 @@
+[Unit]
+Description=[ NCUBED ] uplink init
+StartLimitInterval=200
+StartLimitBurst=5
+After=ncubed-network.service
+Before=containerd.service
+Before=libvirt-guests.service
+
+[Service]
+ExecStart=/bin/python3 /opt/ncubed/services/uplink.service/init.py
+Restart=on-failure
+RestartSec=15
+Type=notify
+
+[Install]
+WantedBy=multi-user.target
