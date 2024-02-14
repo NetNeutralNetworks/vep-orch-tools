@@ -118,6 +118,10 @@ def update_wg():
     IPV6_PREFIX_NEW = config.get('IPV6_SUPERNET').replace('/64','')
     if activepeers != [[['']]]:
         for peer in activepeers:
+            # BUG: in some rare cases the peer ip info contains only 'none', underneath code fixes that, but tthis should be refactored
+            while len(peer[1]) != 2:
+                peer[1].append('::/128')
+                
             IPV6_PREFIX_OLD = str(ipaddress.ip_interface(peer[1][1].replace('/128','/64')).network.network_address)
             if IPV6_PREFIX_NEW is not IPV6_PREFIX_OLD:
                 # update_ansible(IPV6_PREFIX_OLD, 'remove')
