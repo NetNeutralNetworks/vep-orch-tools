@@ -1,4 +1,5 @@
 #!/bin/python3
+import re
 import os
 import logging
 import libvirt
@@ -7,12 +8,8 @@ import termios
 import atexit
 import time
 from argparse import ArgumentParser
+from argparse import RawTextHelpFormatter
 from typing import Optional  # noqa F401
-
-
-def reset_term() -> None:
-    termios.tcsetattr(0, termios.TCSADRAIN, attrs)
-
 
 def error_handler(unused, error) -> None:
     # The console stream errors on VM shutdown; we don't care
@@ -68,7 +65,8 @@ def stream_callback(stream: libvirt.virStream, events: int, console: Console) ->
         console.text += received_data.decode()
     except Exception:
         return
-    os.write(0, received_data)
+    return received_data
+    ##os.write(0, received_data)
 
 
 def lifecycle_callback(connection: libvirt.virConnect, domain: libvirt.virDomain, event: int, detail: int, console: Console) -> None:
@@ -82,17 +80,13 @@ connection = libvirt.open(uri)
 vm = connection.lookupByName('ION')
 uuid = vm.UUIDString()
 
-print("Escape character is ^]")
+# print("Escape character is ^]")
 logging.basicConfig(filename='msg.log', level=logging.DEBUG)
 logging.info("URI: %s", uri)
 logging.info("UUID: %s", uuid)
 
 libvirt.virEventRegisterDefaultImpl()
 libvirt.registerErrorHandler(error_handler, None)
-
-atexit.register(reset_term)
-attrs = termios.tcgetattr(0)
-tty.setraw(0)
 
 console = Console(uri, uuid)
 console.stdin_watch = libvirt.virEventAddHandle(0, libvirt.VIR_EVENT_HANDLE_READABLE, stdin_callback, console)
@@ -101,52 +95,81 @@ console.stream = console.connection.newStream(libvirt.VIR_STREAM_NONBLOCK)
 console.domain.openConsole(None, console.stream, 0)
 console.stream.eventAddCallback(libvirt.VIR_STREAM_EVENT_READABLE, stream_callback, console)
 # while check_console(console):
-def send_command(command='',waitfor='(Q)uit'):
+def send_command(command='',waitfor='(Q)uit', timeout=1, stdout=False):
     START_TIME = time.time()
     command = f"{command}\r".encode()
     console.text = '\n'
     console.stream.send(command)
-    while waitfor not in console.text:
+    last_text = ''
+    #print(f'\n{time.time() - START_TIME} Waiting for: {waitfor}\n')
+    while True:
         libvirt.virEventRunDefaultImpl()
-        #time.sleep(0.5)
-        print(console.text)
-        print(f'\n{time.time() - START_TIME} Waiting for: {waitfor}\n')
-        if time.time() - START_TIME > 10:
+        if stdout:
+            if waitfor in console.text or '\n' in console.text[len(last_text):]:
+                print(console.text[len(last_text):].replace('\n',''))
+                last_text = console.text
+        
+        if waitfor in console.text:
+            break
+        else:
+            pass
+            
+        if time.time() - START_TIME > timeout:
+            print('Invalid arguments provided')
             exit()
             break
 
-    print(f"\n\n\n\n\nThis is the end result: {console.text}")
-    time.sleep(0.1)
+    #print(f"\n{100*'#'}\nThis is the end result: {console.text}")
+    return console.text  
 
 # main
-parser = ArgumentParser(epilog=f"""
-Example: %(prog)s 'MODEL ID' 'ION key' 'secret key'
-
-models:
-1) ion 3102
-2) ion 3104
-3) ion 3108
-4) ion 7108 (larger disk advised)
-5) ion 7116 (larger disk advised)
-6) ion 7132 (larger disk advised)
-""")
-parser.add_argument("MODEL_ID")
-parser.add_argument("ION_KEY")
-parser.add_argument("SECRET_KEY")
-args = parser.parse_args()
-
-send_command()
+send_command(timeout=120)
 if "Select an item to modify, or submit config:" in console.text:
     # if in main menu enter model select
     send_command(command='1')
-send_command(command=args.MODEL_ID, waitfor="Choose a Number or (Q)uit:")
-send_command(command='2', waitfor="Enter ION Key[")
-send_command(command=args.ION_KEY, waitfor="Choose a Number or (Q)uit:")
-send_command(command='3', waitfor="Enter ION secret[")
-send_command(command=args.SECRET_KEY, waitfor="Choose a Number or (Q)uit:")
-send_command(command='5', waitfor="Choose a Number or (Q)uit:")
-send_command(command='1', waitfor="Choose a Number or (Q)uit:")
-send_command(command='1', waitfor="Choose a Number or (Q)uit:")
-send_command(command='4', waitfor="Choose a Number or (Q)uit:")
-send_command(command='14', waitfor='Submit these changes now?[N]:')
-send_command(command='Y', waitfor='login:')
+
+output=send_command()
+model_menu='\n'.join([i for i in output.replace('\t','').split('\r\n') if ') ' in i])
+
+parser = ArgumentParser(epilog=f"""
+Available models: 
+{model_menu}
+
+The ION_KEY and SECRET_KEY need to be obtained from the sdwan portal
+example:
+
+{__file__} 2 00000000000-00000000-0000-0000-0000-000000000000 {40*'0'}
+""", formatter_class=RawTextHelpFormatter)
+parser.add_argument("MODEL_ID")
+parser.add_argument("ION_KEY")
+parser.add_argument("SECRET_KEY")
+
+try:
+    args = parser.parse_args()
+except:
+    parser.print_help()
+    exit(0)
+
+def menu(text_on_screen, key):
+    items = re.findall(f'(\d*)\) \t*?{re.escape(key)}', text_on_screen)
+    if len(items) == 1:
+        return items[0]
+    else:
+        raise Exception("\n\nMenu has changed, please contact your nearest programmer to fix the code")
+
+# set model
+text_on_screen = send_command(command=args.MODEL_ID, waitfor="Choose a Number or (Q)uit:")
+# set ION key
+text_on_screen = send_command(command=menu(text_on_screen, 'ION Key'), waitfor="Enter ION Key[")
+text_on_screen = send_command(command=args.ION_KEY, waitfor="Choose a Number or (Q)uit:")
+# set Secret key
+text_on_screen = send_command(command=menu(text_on_screen, 'Secret Key'), waitfor="Enter ION secret[")
+text_on_screen = send_command(command=args.SECRET_KEY, waitfor="Choose a Number or (Q)uit:")
+# set first wan nic to dhcp
+text_on_screen = send_command(command=menu(text_on_screen, 'Port 1'), waitfor="Choose a Number or (Q)uit:")
+text_on_screen = send_command(command=menu(text_on_screen, 'Role'), waitfor="Choose a Number or (Q)uit:")
+text_on_screen = send_command(command=menu(text_on_screen, 'Internet facing port (PublicWAN)'), waitfor="Choose a Number or (Q)uit:")
+text_on_screen = send_command(command=menu(text_on_screen, 'Apply and return'), waitfor="Choose a Number or (Q)uit:")
+# save exit and reboot
+text_on_screen = send_command(command=menu(text_on_screen, 'Submit and restart'), waitfor='Submit these changes now?[N]:')
+text_on_screen = send_command(command='Y', waitfor='login:', timeout=120, stdout=True)
