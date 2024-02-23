@@ -13,14 +13,14 @@
   - set_fact:
       NCUBED_FOLDER: /opt/ncubed
 
-  # - name: Change file ownership, group and permissions
-  #   ansible.builtin.file:
-  #     path: "{{ NCUBED_FOLDER }}/updates"
-  #     owner: "{{ ansible_user }}"
-  #     group: "{{ ansible_user }}"
-  #     mode: '0755'
-  #     recurse: yes
-  #     state: directory
+  - name: Change file ownership, group and permissions
+    ansible.builtin.file:
+      path: "{{ NCUBED_FOLDER }}/updates"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: '0755'
+      recurse: yes
+      state: directory
 
   - name: copy ncubed update
     local_action: ansible.builtin.command sshpass -p {{ ansible_password }} rsync -arvzh --delete ..{{ NCUBED_FOLDER }}/updates {{ ansible_user }}@[{{ inventory_hostname }}]:{{ NCUBED_FOLDER }}
