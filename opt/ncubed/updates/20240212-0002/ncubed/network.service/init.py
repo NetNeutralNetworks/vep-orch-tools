@@ -222,6 +222,12 @@ def create_wan_circuit(netns, veth, bridge):
         ip link set {veth}_i master {bridge}
         ip link set {veth}_e netns {netns}
         ''', shell=True)
+        
+    subprocess.run(f'''
+    ip link set dev {bridge} up
+    ip link set dev {veth}_i up    
+    ip netns exec {netns} ip link set dev {veth}_e up
+    ''', shell=True)
 
 def create_l2_circuit(netns, veth, bridge, external_bridge):
     create_wan_circuit(netns, veth, bridge)
