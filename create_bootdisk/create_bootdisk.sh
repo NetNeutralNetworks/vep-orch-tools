@@ -105,14 +105,14 @@ fi
 #########################################
 # if device given, write image to device
 #########################################
-if [ ${usbdevice} ]; then
-	dd if=$file of=$usbdevice oflag=direct bs=16M status=progress conv=fsync
-else
 printf "
 \e[1m To write image to usb device use: 
 \e[92m sudo dd if=$file of=/dev/<dev> oflag=direct bs=16M status=progress conv=fsync
 \e[0m
-"	
+"
+
+if [ ${usbdevice} ]; then
+	dd if=$file of=$usbdevice oflag=direct bs=16M status=progress conv=fsync
 fi
 
 #########################################
