@@ -104,6 +104,14 @@ echo ::1 $(hostname) >> /etc/hosts
 systemctl stop network-manager.service
 systemctl mask network-manager.service
 
+# disable wait for network on boot
+systemctl disable systemd-networkd-wait-online.service
+systemctl mask systemd-networkd-wait-online.service
+
+# set boot device
+boot_os=$(efibootmgr | grep ubuntu | grep -Eo '[0-9]{1,4}')
+efibootmgr -o $boot_os
+
 ######################################
 # Tweak cloudinit
 ######################################
