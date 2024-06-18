@@ -246,7 +246,18 @@ def refresh_attestation():
 
 if __name__ == '__main__':
     logger.debug("Starting callhome service")
-    subprocess.run(f"/usr/bin/efibootmgr -O", shell=True)
+    try:
+        # force set boot ubuntu
+        bootsequence=subprocess.run(f"/usr/bin/efibootmgr", shell=True, capture_output=True).stdout.decode()
+        boot_os = re.findall('boot(\d\d\d\d)\* ubuntu',bootsequence.lower())[0]
+        subprocess.run(f"/usr/bin/efibootmgr -o {boot_os}", shell=True)
+        # do not wait for network
+        r = subprocess.run(f"""systemctl disable systemd-networkd-wait-online.service
+                        systemctl mask systemd-networkd-wait-online.service
+                    """, shell=True)
+    except Exception as e:
+        logger.error(e)
+    
     clean_up_wg_quick()
     
     attempts = 0
