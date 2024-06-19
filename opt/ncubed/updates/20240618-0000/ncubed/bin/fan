@@ -1,0 +1,33 @@
+i2cset -y 0 0x1b 0x4 0x34
+i2cset -y 0 0x1b 0x6 0x0
+
+#!/bin/bash
+set -e
+##################################################################################
+# elevate
+##################################################################################
+[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
+
+self=$(readlink -f $0)
+i2cdev=$(i2cdetect -l | grep iSMT | cut -d "-" -f2 | cut -f1)
+if [ ! -z $i2cdev ] ; then
+case $1 in
+        --help)
+        printf "
+	    fan off|slow|fast
+		\n"
+        ;;
+        off)
+            i2cset -y $i2cdev 0x1b 0x4 0x1
+            i2cset -y $i2cdev 0x1b 0x6 0x0
+        ;;
+        slow)
+            i2cset -y $i2cdev 0x1b 0x4 0x34
+            i2cset -y $i2cdev 0x1b 0x6 0x0
+        ;;
+        fast)
+            i2cset -y $i2cdev 0x1b 0x4 0x34
+            i2cset -y $i2cdev 0x1b 0x6 0xa
+        ;;
+esac
+fi

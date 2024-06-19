@@ -65,6 +65,7 @@ def orch_server_healthcheck(orch_server):
         return 1
 
 if __name__ == '__main__':
+    subprocess.run(f"/opt/ncubed/bin/fan slow", shell=True)
     while True:
         try:
             active_namespaces = get_active_uplinks()
