@@ -197,7 +197,7 @@ def connect_to_orch(name):
     with open(STATUS_FILE, 'r') as file:
         status = json.load(file)
     with open(ORCH_INFO_FILE, 'r') as file:
-        orch_info = yaml.load(file).get('result', {})
+        orch_info = yaml.load(file, Loader=yaml.FullLoader).get('result', {})
     active_namespaces = status.get('active_namespaces', [])
     orchestration_servers = orch_info.get('servers', [])
     orch_server = [(index, x) for index, x in enumerate(orchestration_servers) if x['orchestration_server'] == name][0]
