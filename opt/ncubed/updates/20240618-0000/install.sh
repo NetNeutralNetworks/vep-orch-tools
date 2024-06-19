@@ -109,7 +109,7 @@ systemctl disable systemd-networkd-wait-online.service
 systemctl mask systemd-networkd-wait-online.service
 
 touch /etc/cloud/cloud-init.disabled
-bash -c $ROOTDIR/scripts/fix_unwanted_boot_diagos.sh
+bash $ROOTDIR/scripts/fix_unwanted_boot_diagos.sh
 
 ######################################
 # Tweak cloudinit
