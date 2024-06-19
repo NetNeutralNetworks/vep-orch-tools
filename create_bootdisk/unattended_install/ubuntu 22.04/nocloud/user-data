@@ -193,7 +193,5 @@ autoinstall:
         sudo: ALL=(ALL) NOPASSWD:ALL
         passwd: '$6$MIv5OJRmcCkinJ3G$lEA/I6GSObSKLpcRtZaaHq6HxApwkke4IdaMlMuWoRt8/iRrvkA3hU7sL0PeA7eLG6zCFfyMluh97LK3qNrMA.'
         lock_passwd: false
-    bootcmd:
-      - efibootmgr -O
     runcmd:
       - /bin/bash $(ls -d /opt/ncubed/updates/* | tail -n1)/install.sh --skip_version_check 2>/dev/null

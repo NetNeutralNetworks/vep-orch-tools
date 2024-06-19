@@ -108,9 +108,8 @@ systemctl mask network-manager.service
 systemctl disable systemd-networkd-wait-online.service
 systemctl mask systemd-networkd-wait-online.service
 
-# set boot device
-boot_os=$(efibootmgr | grep ubuntu | grep -Eo '[0-9]{1,4}')
-efibootmgr -o $boot_os
+touch /etc/cloud/cloud-init.disabled
+bash -c $ROOTDIR/scripts/fix_unwanted_boot_diagos.sh
 
 ######################################
 # Tweak cloudinit
