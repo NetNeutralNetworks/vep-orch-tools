@@ -1,0 +1,80 @@
+NCUBED-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-IDENTITY, enterprises, OBJECT-TYPE, Integer32, Gauge32
+        FROM SNMPv2-SMI
+    DisplayString
+        FROM SNMPv2-TC
+    ucdExperimental
+        FROM UCD-SNMP-MIB;
+
+ncubedMIB MODULE-IDENTITY
+    LAST-UPDATED "200011050000Z"
+    ORGANIZATION "AdamsNames Ltd"
+    CONTACT-INFO
+        "Primary Contact: M J Oldfield
+         email:     m@mail.tc"
+    DESCRIPTION
+        "This MIB module defines objects for lm_sensor derived data."
+    REVISION     "200011050000Z"
+    DESCRIPTION
+        "Derived from DISKIO-MIB ex UCD."
+    ::= { enterprises 61192 }
+
+ncubedProducts OBJECT-IDENTITY
+    STATUS  current
+    DESCRIPTION
+            "The root of ncubed's Product OIDs."
+    ::= { ncubedMIB 1 }
+
+--
+
+ncubedUpdatesTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF ncubedUpdatesSensorsEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "Table of available updates."
+    ::= { ncubedProducts 8 }
+
+ncubedUpdatesSensorsEntry OBJECT-TYPE
+    SYNTAX      ncubedUpdatesSensorsEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "An entry containing a device and its statistics."
+    INDEX       { ncubedUpdatesSensorsIndex }
+    ::= { ncubedUpdatesTable 1 }
+
+ncubedUpdatesSensorsEntry ::= SEQUENCE {
+    ncubedUpdatesSensorsIndex    Integer32,
+    ncubedUpdatesSensorsDescription   DisplayString,
+    ncubedUpdatesSensorsValue    Gauge32
+}
+
+ncubedUpdatesSensorsIndex OBJECT-TYPE
+    SYNTAX      Integer32 (0..65535)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Reference index for each observed item."
+    ::= { ncubedUpdatesSensorsEntry 1 }
+
+ncubedUpdatesSensorsDescription OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "update specification"
+    ::= { ncubedUpdatesSensorsEntry 2 }
+
+ncubedUpdatesSensorsValue OBJECT-TYPE
+    SYNTAX      Gauge32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "updates packages pending install"
+    ::= { ncubedUpdatesSensorsEntry 3 }
+--
+
+END
