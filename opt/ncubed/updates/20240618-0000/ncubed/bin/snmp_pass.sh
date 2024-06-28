@@ -33,6 +33,9 @@ if [ "$1" = "-n" ]; then
     $PLACE.1.8.1.2.2)    RET=$PLACE.1.8.1.3.1 ;;
     $PLACE.1.8.1.3)      RET=$PLACE.1.8.1.3.1 ;;
     $PLACE.1.8.1.3.1)    RET=$PLACE.1.8.1.3.2 ;;
+    $PLACE.1.8.1.3.2)    RET=$PLACE.1.8.1.4.1 ;;
+    $PLACE.1.8.1.4)      RET=$PLACE.1.8.1.4.1 ;;
+    $PLACE.1.8.1.4.1)    RET=$PLACE.1.8.1.4.2 ;;
     *)              exit 0 ;;
   esac
 else
@@ -54,7 +57,9 @@ else
     $PLACE.1.8.1.2.1|         \
     $PLACE.1.8.1.2.2|         \
     $PLACE.1.8.1.3.1|         \
-    $PLACE.1.8.1.3.2)  RET=$REQ ;;
+    $PLACE.1.8.1.3.2|         \
+    $PLACE.1.8.1.4.1|         \
+    $PLACE.1.8.1.4.2)  RET=$REQ ;;
     *)              exit 0 ;;
   esac
 fi
@@ -78,5 +83,7 @@ case "$RET" in
   $PLACE.1.8.1.2.2)     echo "string";    echo "all updates"; exit 0 ;;
   $PLACE.1.8.1.3.1)     echo "integer";    cat /var/lib/update-notifier/updates-available | grep sec | cut -d ' ' -f1; exit 0 ;;
   $PLACE.1.8.1.3.2)     echo "integer";    cat /var/lib/update-notifier/updates-available | grep 'updates can be applied immediately' | cut -d ' ' -f1; exit 0 ;;
+  $PLACE.1.8.1.4.1)     echo "integer";    echo 0; exit 0 ;;
+  $PLACE.1.8.1.4.2)     echo "integer";    echo 20; exit 0 ;;
   *)              echo "string";    echo "ack... $RET $REQ"; exit 0 ;;  # Should not happen
 esac
