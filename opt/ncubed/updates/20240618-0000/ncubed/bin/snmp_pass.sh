@@ -83,7 +83,7 @@ case "$RET" in
   $PLACE.1.8.1.2.2)     echo "string";    echo "all updates"; exit 0 ;;
   $PLACE.1.8.1.3.1)     echo "integer";    cat /var/lib/update-notifier/updates-available | grep sec | cut -d ' ' -f1; exit 0 ;;
   $PLACE.1.8.1.3.2)     echo "integer";    cat /var/lib/update-notifier/updates-available | grep 'updates can be applied immediately' | cut -d ' ' -f1; exit 0 ;;
-  $PLACE.1.8.1.4.1)     echo "integer";    echo 0; exit 0 ;;
-  $PLACE.1.8.1.4.2)     echo "integer";    echo 20; exit 0 ;;
+  $PLACE.1.8.1.4.1)     echo "integer";    echo 5; exit 0 ;;
+  $PLACE.1.8.1.4.2)     echo "integer";    echo 50; exit 0 ;;
   *)              echo "string";    echo "ack... $RET $REQ"; exit 0 ;;  # Should not happen
 esac
