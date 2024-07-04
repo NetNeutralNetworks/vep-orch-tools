@@ -6,6 +6,13 @@ import os
 import time
 import argparse
 
+if not 'ANSIBLE_USER' in os.environ:
+    print (f"no ANSIBLE_USER defined in environmental variables")
+    exit()
+if not 'ANSIBLE_PASSWORD' in os.environ:
+    print (f"no ANSIBLE_PASSWORD defined in environmental variables")
+    exit()
+
 parser = argparse.ArgumentParser(prog='vep updater',
                                  description='This programe installs all updates on the selected vep group')
 
