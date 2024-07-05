@@ -66,6 +66,10 @@ while nodes_list:
         if lines[-1][-3:] == ':~$':
             finished_nodes.append(nodes_list.index(node))
             lines.append('FINNISHED')
+            subprocess.run(f'''
+                            ansible -o -i {inventory_file} -m shell -a "tmux send-keys 'exit' enter" {node}
+                            ''',
+                            shell=True)
         else:
             subprocess.run(f'''
                             ansible -o -i {inventory_file} -m shell -a "tmux send-keys enter" {node}
