@@ -48,13 +48,13 @@ if not nodes:
 print(f'Upgrading nodes: {nodes}')
 
 r = subprocess.run(f'''
-                    ansible -o -i {inventory_file} -m shell -a "tmux new-session -d && tmux send-keys 'sudo ip netns exec ns_WAN0 apt -y update && sudo ip netns exec ns_WAN0 apt -yq upgrade' enter" {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'ACTIVE_NETNS=ns_$(ip -br addr | grep wg_ | grep -o "WAN\S*" | head -1) && tmux new-session -d && tmux send-keys "sudo ip netns exec $ACTIVE_NETNS apt -y update && sudo ip netns exec $ACTIVE_NETNS apt -yq upgrade" enter' {nodes}
                     ''',
                     shell=True, capture_output=True, text=True).stdout.strip("\n")
 
 nodes_list = nodes.split(',')
 while nodes_list:
-    time.sleep(1)
+    time.sleep(3)
     finished_nodes=[]
     for node in nodes_list:
         r = subprocess.run(f'''
@@ -62,15 +62,17 @@ while nodes_list:
                             ''',
                             shell=True, capture_output=True, text=True).stdout.strip("\n")
         
-        if r.split('\\n')[-1][-3:] == ':~$':
+        lines = r.split('\\n')
+        if lines[-1][-3:] == ':~$':
             finished_nodes.append(nodes_list.index(node))
+            lines.append('FINNISHED')
         else:
             subprocess.run(f'''
                             ansible -o -i {inventory_file} -m shell -a "tmux send-keys enter" {node}
                             ''',
                             shell=True)
         
-        print(r.split('\\n')[-1])
+        print(f'{lines[0].split(" ")[0]} | {time.asctime()} | {lines[-1]}')
         finished_nodes.reverse()
         for i in finished_nodes:
             nodes_list.pop(i)
