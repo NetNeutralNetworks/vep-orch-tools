@@ -54,7 +54,8 @@ r = subprocess.run(f'''
 
 nodes_list = nodes.split(',')
 while nodes_list:
-    time.sleep(1)
+    print("refreshing in 10 seconds")
+    time.sleep(10)
     finished_nodes=[]
     for node in nodes_list:
         r = subprocess.run(f'''
