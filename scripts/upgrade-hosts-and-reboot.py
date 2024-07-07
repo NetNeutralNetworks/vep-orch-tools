@@ -83,7 +83,7 @@ while nodes_list:
 
 if args.reboot:
     subprocess.run(f'''
-                ansible -o -i {inventory_file} -m shell -a "sudo init 6" {node}
+                ansible -o -i {inventory_file} -m shell -a "sudo init 6" {nodes}
                 ''',
                 shell=True)
 
