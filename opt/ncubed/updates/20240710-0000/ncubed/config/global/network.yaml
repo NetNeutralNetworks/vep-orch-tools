@@ -33,7 +33,7 @@
       - name: bond34
         type: 802.3ad
         bridgename: br-trunk34
-        interfaces: ['eno3','eno4']
+        interfaces: ['eno3', 'eno4']
       - name: bond56
         bridgename: br-trunk56
         interfaces: ['eno5', 'eno6']
@@ -44,20 +44,19 @@
 
 - family: VEP-4600
   portconfig:
-    MGMT: 
+    MGMT:
       0: 'enp5s0'
     WAN:
-      0: 'enp2s0f2'
-      1: 'enp2s0f3'
+      1: 'enp182s0f0'
       2: 'enp182s0f1'
     BONDS:
       - name: bond34
         type: 802.3ad
         bridgename: br-trunk34
-        interfaces: []
+        interfaces: ['enp2s0f0', 'enp2s0f1']
       - name: bond56
         bridgename: br-trunk56
-        interfaces: ['enp182s0f0']
+        interfaces: ['enp2s0f2', 'enp2s0f3']
     INT:
       0: br-trunk34
     LAN:
