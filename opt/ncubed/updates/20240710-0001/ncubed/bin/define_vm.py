@@ -3,7 +3,7 @@ def render_xml(VMNAME='ION', CPU='8', MEM='8'):
     bridges=['br-MGMT',
              'br-WAN0_nat_i','br-WAN1_nat_i','br-WAN2_nat_i',
              'br-WAN0_l2_i','br-WAN1_l2_i','br-WAN2_l2_i',
-             'br-WAN2_l2_i','br-trunk34','br-trunk56']
+             'br-WAN2_l2_i','br-4051','br-trunk56']
     DEFINITION=''
     DEFINITION += f'''
     <domain type='kvm'>
