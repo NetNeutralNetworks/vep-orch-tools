@@ -144,6 +144,10 @@ autoinstall:
     ###########################
     - pgrep -f '/bin/led' | sed '$ d' | xargs -r kill
     - /cdrom/ncubed/bin/led blue
+    ###########################
+    # disbale network during install
+    ###########################    
+    - for intf in $(ip -br link | cut -d " " -f1); do ip link set dev $(basename $intf) down; done
 
   late-commands:
     - /cdrom/ncubed/bin/led orange
@@ -168,9 +172,10 @@ autoinstall:
     - cp -r /cdrom/ncubed /target/opt
     - /cdrom/ncubed/bin/led green
     - /cdrom/ncubed/bin/sync-images sdb2 /target/opt/ncubed
-    - apt -y install efibootmgr
-    - efibootmgr -n 0000
     - cp /target/etc/apt/sources.list.curtin.old /target/etc/apt/sources.list
+    - apt -y install efibootmgr
+    # set next boot to ubuntu
+    - efibootmgr -n $(efibootmgr | grep -i -e ubuntu | grep -Eo "[0-9]{1,4}")
 
   error-commands:
     - /cdrom/ncubed/bin/led red
@@ -194,4 +199,5 @@ autoinstall:
         passwd: '$6$MIv5OJRmcCkinJ3G$lEA/I6GSObSKLpcRtZaaHq6HxApwkke4IdaMlMuWoRt8/iRrvkA3hU7sL0PeA7eLG6zCFfyMluh97LK3qNrMA.'
         lock_passwd: false
     runcmd:
+      - hostnamectl hostname netcube-$(cat /sys/devices/virtual/dmi/id/board_asset_tag)
       - /bin/bash $(ls -d /opt/ncubed/updates/* | tail -n1)/install.sh --skip_version_check 2>/dev/null

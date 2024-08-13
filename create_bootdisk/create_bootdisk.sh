@@ -37,7 +37,8 @@ fi
 file="netcube-autoinstall.$(date "+%Y.%m.%d-%H.%M.%S").img"
 #isofile="ubuntu-20.04.4-live-server-amd64.iso"
 #isofile="ubuntu-22.04.1-live-server-amd64.iso"
-isofile="ubuntu-22.04.3-live-server-amd64.iso"
+#isofile="ubuntu-22.04.3-live-server-amd64.iso"
+isofile="ubuntu-22.04.4-live-server-amd64.iso"
 mountfolder1=`pwd`"/part01/"
 mountfolder2=`pwd`"/part02/"
 

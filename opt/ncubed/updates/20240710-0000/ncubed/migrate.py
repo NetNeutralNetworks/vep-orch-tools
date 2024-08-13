@@ -1,8 +1,11 @@
+#!/bin/python3
 import subprocess, yaml
+import os
+
+LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
+ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
 
 def to_20231031():
-    LOCAL_CONFIG_FOLDER = "/opt/ncubed/config/local"
-    ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
 
     with open(ORCH_INFO_FILE, 'r') as f:
         attestation = yaml.safe_load(f)
@@ -29,4 +32,6 @@ def to_20231031():
         }
         with open(ORCH_INFO_FILE, 'w') as f:
             f.write(yaml.dump(new_config))
-to_20231031()
+
+if os.path.isfile(ORCH_INFO_FILE):
+    to_20231031()

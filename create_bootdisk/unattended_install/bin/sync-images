@@ -9,7 +9,7 @@ if [ -d "/mnt/images" ]; then
     $2/bin/led blink green .05 .05 &
     printf "copying images, please wait..."
     cp -r /mnt/images $2
-    pgrep -f '/bin/led' | sed '$ d' | xargs -r kill
+    pgrep -f '/bin/led' | xargs -r kill
 fi
 umount /mnt
 $2/bin/led green

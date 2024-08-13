@@ -108,12 +108,19 @@ systemctl mask network-manager.service
 systemctl disable systemd-networkd-wait-online.service
 systemctl mask systemd-networkd-wait-online.service
 
-touch /etc/cloud/cloud-init.disabled
 bash $ROOTDIR/scripts/fix_unwanted_boot_diagos.sh
+
+# disable diag-os as bootable
+for i in $(efibootmgr | grep -i EDA-DIAG | grep -Eo "[0-9]{4}"); do sudo efibootmgr -b $i -A; done
+# disable efi shell as bootable
+for i in $(efibootmgr | grep -i "efi shell" | grep -Eo "[0-9]{4}"); do sudo efibootmgr -b $i -A; done
 
 ######################################
 # Tweak cloudinit
 ######################################
+# disable cloud init after install
+touch /etc/cloud/cloud-init.disabled
+
 # make hostname changes persistent
 echo "preserve_hostname: true" > /etc/cloud/cloud.cfg.d/99_hostname.cfg
 
