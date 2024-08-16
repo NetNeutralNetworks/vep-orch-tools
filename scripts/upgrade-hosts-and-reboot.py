@@ -65,7 +65,7 @@ while nodes_list:
         lines = r.split('\\n')
         if lines[-1][-3:] == ':~$':
             finished_nodes.append(nodes_list.index(node))
-            lines.append('FINNISHED')
+            lines.append('FINISHED')
             subprocess.run(f'''
                             ansible -o -i {inventory_file} -m shell -a "tmux send-keys 'exit' enter" {node}
                             ''',
@@ -77,7 +77,7 @@ while nodes_list:
                             shell=True)
         
         print(f'{lines[0].split(" ")[0]} | {time.asctime()} | {lines[-1]}')
-        finished_nodes.reverse()
+        finished_nodes.sort(reverse=True)
         for i in finished_nodes:
             nodes_list.pop(i)
 
