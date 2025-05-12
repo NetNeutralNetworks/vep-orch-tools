@@ -55,6 +55,7 @@ def get_wan_ports():
 
 def cycle_wan_ports():
     if check_internet() and not is_at_night():
+        logger.warning("NOT Cycling wan ports, internet is still connected and not outside office hours")
         return
         
     logger.warning("Cycling wan ports")    
