@@ -54,9 +54,10 @@ def get_wan_ports():
         return DEV_CONFIG[0]['portconfig']['WAN'].items()
 
 def cycle_wan_ports():
-    if not is_at_night():
+    if check_internet() and not is_at_night():
         return
-    logger.warning("Cycling wan ports")
+        
+    logger.warning("Cycling wan ports")    
     for ns, port in get_wan_ports():
         # set port down
         subprocess.run(f"ip netns exec ns_WAN{ns} ip link set {port} down", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)

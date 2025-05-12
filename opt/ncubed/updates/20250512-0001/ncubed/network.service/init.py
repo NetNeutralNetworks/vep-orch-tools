@@ -26,7 +26,7 @@ ROOT_FOLDER = "/opt/ncubed"
 LOCAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/local"
 GLOBAL_CONFIG_FOLDER = f"{ROOT_FOLDER}/config/global"
 LOCAL_SYSTEM_CONFIG_FILE = f'{LOCAL_CONFIG_FOLDER}/system.yaml'
-CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
+CUSTOM_NETWORK_CONFIG_SCRIPT_FILE = "/etc/opt/ncubed/custom_network.py"
 DEFAULT_DNS_SERVERS=["1.1.1.1","8.8.8.8","9.9.9.9"]
 
 def check_ip_configured(NETNS, BRIDGE_E):
@@ -582,8 +582,8 @@ if __name__ == '__main__':
 
     try:
         # this is only as a last resort, or for during testing
-        if os.path.exists(CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE):
-            subprocess.run(f"python3 {CUSTOM_NETWORK_CCONFIG_SCRIPT_FILE}", shell=True)
+        if os.path.exists(CUSTOM_NETWORK_CONFIG_SCRIPT_FILE):
+            subprocess.run(f"python3 {CUSTOM_NETWORK_CONFIG_SCRIPT_FILE}", shell=True)
     except Exception as e:
         logger.warning(f"Error running custom network script: {e}")
 
