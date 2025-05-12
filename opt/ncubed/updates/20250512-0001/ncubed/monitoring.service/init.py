@@ -51,7 +51,7 @@ def get_active_uplinks():
 def get_orch_servers():
     try:
         with open(ORCH_INFO_FILE, 'r') as f:
-            attestation = yaml.load(f)
+            attestation = yaml.safe_load(f)
             return attestation.get('result', {}).get('servers', [])
     except FileNotFoundError as e:
         return []

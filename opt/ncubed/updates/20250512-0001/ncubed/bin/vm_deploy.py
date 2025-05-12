@@ -38,7 +38,7 @@ IMAGE=args.imagefile
 
 def get_config():
     with open(f"{ROOT}/config/local/network.yaml") as f:
-        PORT_CONFIG = yaml.load(f, Loader=yaml.FullLoader)
+        PORT_CONFIG = yaml.safe_load(f)
 
     DEV_FAMILIY=subprocess.run(f"dmidecode -s system-family", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().strip()
     return [C for C in PORT_CONFIG if DEV_FAMILIY == C.get('family')][0]

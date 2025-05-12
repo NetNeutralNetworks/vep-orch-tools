@@ -113,7 +113,7 @@ def get_local_system_config():
     if os.path.exists(LOCAL_SYSTEM_CONFIG_FILE):
         with open(LOCAL_SYSTEM_CONFIG_FILE) as f:
             logger.info(f"Found config for adding globaly defined vlan bridges")
-            return yaml.load(f, Loader=yaml.FullLoader)
+            return yaml.safe_load(f)
     else:
         return {}
     
@@ -317,7 +317,7 @@ def log_netns_ip_addr(NETNS):
 def get_yaml_config(file):
      if os.path.exists(file):
          with open(file) as f:
-             wan_config = yaml.load(f, Loader=yaml.FullLoader)
+             wan_config = yaml.safe_load(f)
      else:
          wan_config = {}
      return wan_config
@@ -483,7 +483,7 @@ def load_vlan_bridges_from_config(FILENAME):
     if os.path.exists(FILENAME):
         with open(FILENAME) as f:
             logger.info(f"found defined vlan bridges in {FILENAME}")
-            return yaml.load(f, Loader=yaml.FullLoader)
+            return yaml.safe_load(f)
     else:
         return {}
 
@@ -546,7 +546,7 @@ def get_port_configs():
             subprocess.run(f'''cp {GLOBAL_CONFIG_FOLDER}/network.yaml {LOCAL_CONFIG_FOLDER}/network.yaml''', shell=True)
 
         with open(f'{LOCAL_CONFIG_FOLDER}/network.yaml') as f:
-            PORT_CONFIGS = yaml.load(f, Loader=yaml.FullLoader)
+            PORT_CONFIGS = yaml.safe_load(f)
         return PORT_CONFIGS
     except Exception as e:
         logger.error(f"Unable to read: {LOCAL_CONFIG_FOLDER}/network.yaml")

@@ -218,11 +218,11 @@ class attestation(N3cli):
         '''Shows the current attestation info (host)'''
         if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
             with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
-                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_config = yaml.safe_load(f)
                 print(f"Attestation server: {attestation_config.get('attestation_server')}")
         else:
             with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
-                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_config = yaml.safe_load(f)
                 print(f"No local attestation server is set. Global server is: {attestation_config.get('attestation_server')}")
         
     def do_refresh(self, args):
@@ -241,7 +241,7 @@ class attestation(N3cli):
             return
         try:
             with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml', 'r') as f:
-                attestation_config_old = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_config_old = yaml.safe_load(f)
         except:
                 attestation_config_old = {}
         attestation_config = dict(attestation_config_old)
@@ -265,11 +265,11 @@ class attestation(N3cli):
             status = json.load(file)
         if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
             with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
-                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_config = yaml.safe_load(f)
                 attestation_server = attestation_config.get('attestation_server')
         else:
             with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
-                attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+                attestation_config = yaml.safe_load(f)
                 attestation_server = attestation_config.get('attestation_server')
         for netns in status.get('active_namespaces'):
             attestation_result = subprocess.run(f"sudo ip netns exec {netns} curl -I 'https://{attestation_server}' 2>/dev/null | head -n 1", shell=True, capture_output=True, text=True).stdout

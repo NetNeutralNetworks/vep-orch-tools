@@ -39,7 +39,7 @@ def get_existing_netnamespaces():
 def get_port_configs():
     try:
         with open(f'{LOCAL_CONFIG_FOLDER}/network.yaml', 'r') as f:
-            PORT_CONFIGS = yaml.load(f, Loader=yaml.FullLoader)
+            PORT_CONFIGS = yaml.safe_load(f)
         return PORT_CONFIGS
     except Exception as e:
         logger.error(f"Unable to read: {LOCAL_CONFIG_FOLDER}/network.yaml")

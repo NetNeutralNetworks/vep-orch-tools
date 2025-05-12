@@ -111,8 +111,8 @@ def capture_reference_ip(WANINTF):
 #     FILENAME = f'/opt/ncubed/config/local/{WANINTF}.yaml'
 
 #     with open(FILENAME,'w+') as wfile:
-#         with open(FILENAME,'r') as file:
-#             data = yaml.load(file, Loader=yaml.FullLoader)
+#         with open(FILENAME,'r') as f:
+#             data = yaml.safe_load(f)
 #             if not data:
 #                 data = {}
 #             data.update({'settings':settings})

@@ -27,11 +27,11 @@ ORCH_INFO_FILE = f'{LOCAL_CONFIG_FOLDER}/orch_info.yaml'
 def get_attestation_config():
     if os.path.exists(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml'):
         with open(f'{LOCAL_CONFIG_FOLDER}/attestation.yaml') as f:
-            attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+            attestation_config = yaml.safe_load(f)
             return attestation_config.get('attestation_server')
     else:
         with open(f'{GLOBAL_CONFIG_FOLDER}/attestation.yaml') as f:
-            attestation_config = yaml.load(f, Loader=yaml.FullLoader)
+            attestation_config = yaml.safe_load(f)
             return attestation_config.get('attestation_server')
 
 
@@ -47,7 +47,7 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 # Goes through all the namespaces and checks if the hardware interface is up
 def get_device_config():
     with open(f'{GLOBAL_CONFIG_FOLDER}/network.yaml') as f:
-        PORT_CONFIGS = yaml.load(f, Loader=yaml.FullLoader)
+        PORT_CONFIGS = yaml.safe_load(f)
     DEV_FAMILIY=subprocess.run(f"dmidecode -s system-family", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().strip()
     DEV_CONFIG=[C for C in PORT_CONFIGS if DEV_FAMILIY == C.get('family')]
     return DEV_CONFIG
@@ -196,8 +196,8 @@ def connect_to_orch_over_ns(orch_server, orch_info, ns):
 def connect_to_orch(name):
     with open(STATUS_FILE, 'r') as file:
         status = json.load(file)
-    with open(ORCH_INFO_FILE, 'r') as file:
-        orch_info = yaml.load(file, Loader=yaml.FullLoader).get('result', {})
+    with open(ORCH_INFO_FILE, 'r') as f:
+        orch_info = yaml.safe_load(f).get('result', {})
     active_namespaces = status.get('active_namespaces', [])
     orchestration_servers = orch_info.get('servers', [])
     orch_server = [(index, x) for index, x in enumerate(orchestration_servers) if x['orchestration_server'] == name][0]
