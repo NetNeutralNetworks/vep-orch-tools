@@ -28,6 +28,9 @@ done
 ##################################################################################
 [ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
 
+# make sure system reboots on kernel panic even if not set in grub yet
+sysctl -w kernel.panic=5
+
 #SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 ROOTDIR="/opt/ncubed"
 
@@ -70,6 +73,9 @@ netplan apply
 
 # update etc files
 cp -p -r $ROOTDIR/etc/* /etc/
+
+# update grub
+update-grub
 
 # make sure bin dir is executiable
 chmod +x $ROOTDIR/bin/*
