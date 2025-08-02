@@ -3,5 +3,8 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"ansible.python.interpreterPath": "/home/dev01/.local/share/virtualenvs/vep-orch-tools-oWuj7S5V/bin/python"
+	}
 }
