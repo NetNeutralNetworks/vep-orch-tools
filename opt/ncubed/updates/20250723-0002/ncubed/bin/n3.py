@@ -13,6 +13,7 @@ import cmd
 import sys
 import glob
 from os.path import exists
+import pathlib
 
 BOLD = "\033[1m"
 RED = "\033[31m"
@@ -369,13 +370,8 @@ class cli(N3cli):
                        ''', shell=True)
         
     def complete_connect(self, text, line, start_index, end_index):
-        devices = subprocess.run(f"ls /dev/", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout.decode().split()
-        usb_devices = [f"/dev/{x}" for x in devices if 'USB' in x]
-        import readline
-        readline.set_completer_delims(' \t\n')
-        return [ t for t in usb_devices if text in t]
-
-        
+        usb_devices = [a for s in ['*USB*','*ACM*'] for a in list(pathlib.Path('/dev').glob(s))]
+        return  [ str(t) for t in usb_devices if text in str(t) ]       
 
 
 if __name__ == '__main__':
