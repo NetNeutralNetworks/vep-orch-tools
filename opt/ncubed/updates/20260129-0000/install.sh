@@ -31,13 +31,6 @@ done
 # make sure system reboots on kernel panic even if not set in grub yet
 sysctl -w kernel.panic=5
 
-FILE=/etc/default/grub
-STRING='GRUB_CMDLINE_LINUX_DEFAULT="console=ttyS0,115200 panic=5"'
-if ! grep -q -F "$STRING" "$FILE"; then
-  sed "s/.*GRUB_CMDLINE_LINUX_DEFAULT=.*/${STRING}/" $FILE
-  update-grub
-fi
-
 #SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 ROOTDIR="/opt/ncubed"
 
