@@ -59,12 +59,12 @@ r = subprocess.run(f'''
                     ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} ACTIVE_NETNS=$(ip netns |grep $(ip -br addr | grep wg_ | grep -o -e "WAN\S*" -e "ROOT\S*"| head -1) | cut -d " " -f1) enter' {nodes}
                     
                     ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} "sudo ip netns exec \$ACTIVE_NETNS bash" enter' {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} "touch /opt/ncubed/apt_lock" {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && DEBIAN_FRONTEND=noninteractive"' {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && apt -y update"' {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && apt -yq upgrade"' {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && exit"' {nodes}
-                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && rm /opt/ncubed/apt_lock" enter' {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} "touch /opt/ncubed/apt_lock"' {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && DEBIAN_FRONTEND=noninteractive apt -y update"' {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && DEBIAN_FRONTEND=noninteractive apt -yq upgrade"' {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && rm /opt/ncubed/apt_lock"' {nodes}
+                    ansible -o -i {inventory_file} -m shell -a 'tmux send-keys -t {TERMINALID} " && exit" enter' {nodes}
+                    
                     ''',
                     shell=True, capture_output=True, text=True).stdout.strip("\n")
 
